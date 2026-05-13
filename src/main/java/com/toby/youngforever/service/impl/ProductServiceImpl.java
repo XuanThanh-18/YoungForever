@@ -16,6 +16,7 @@ import com.toby.youngforever.repository.CategoryRepository;
 import com.toby.youngforever.repository.ProductRepository;
 import com.toby.youngforever.service.ProductService;
 import com.toby.youngforever.util.SlugUtils;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -25,7 +26,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.criteria.Predicate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -44,29 +45,25 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public PageResponse<ProductSummaryResponse> filterProducts(ProductFilterRequest filter) {
         Specification<Product> spec = buildSpecification(filter);
-
         Sort sort = buildSort(filter.getSortBy(), filter.getSortDir());
         Pageable pageable = PageRequest.of(filter.getPage(), filter.getSize(), sort);
-
         Page<Product> page = productRepository.findAll(spec, pageable);
         return PageResponse.from(page.map(productMapper::toSummary));
     }
 
-    @Cacheable(value = "products", key = "#slug")
     @Override
+    @Cacheable(value = "products", key = "#slug")
     public ProductResponse getBySlug(String slug) {
         Product product = productRepository.findBySlug(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Sản phẩm " + slug));
-
-        // Async increment view count
+        // Increment view count without breaking cache read
         productRepository.incrementViewCount(product.getId());
-
         return productMapper.toResponse(product);
     }
 
+    @Override
     @Transactional
     @CacheEvict(value = "products", allEntries = true)
-    @Override
     public ProductResponse create(CreateProductRequest request) {
         String slug = generateUniqueSlug(request.getName(), null);
 
@@ -83,12 +80,17 @@ public class ProductServiceImpl implements ProductService {
         return productMapper.toResponse(productRepository.save(product));
     }
 
+    @Override
     @Transactional
     @CacheEvict(value = "products", allEntries = true)
-    @Override
     public ProductResponse update(UUID id, UpdateProductRequest request) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
+
+        // Regenerate slug if name changed
+        if (request.getName() != null && !request.getName().equals(product.getName())) {
+            product.setSlug(generateUniqueSlug(request.getName(), id));
+        }
 
         productMapper.updateFromRequest(request, product);
 
@@ -96,19 +98,91 @@ public class ProductServiceImpl implements ProductService {
             product.setCategory(categoryRepository.findById(request.getCategoryId())
                     .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND)));
         }
+        if (request.getBrandId() != null) {
+            product.setBrand(brandRepository.findById(request.getBrandId())
+                    .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND)));
+        }
 
         return productMapper.toResponse(productRepository.save(product));
     }
 
+    @Override
     @Transactional
     @CacheEvict(value = "products", allEntries = true)
-    @Override
     public void softDelete(UUID id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND));
-        product.setDeletedAt(java.time.LocalDateTime.now());
+        product.setDeletedAt(LocalDateTime.now());
         product.setIsActive(false);
         productRepository.save(product);
     }
 
+    // ── Specification builder ────────────────────────────────
+    private Specification<Product> buildSpecification(ProductFilterRequest f) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            predicates.add(cb.isTrue(root.get("isActive")));
+            predicates.add(cb.isNull(root.get("deletedAt")));
+
+            if (f.getKeyword() != null && !f.getKeyword().isBlank()) {
+                String like = "%" + f.getKeyword().toLowerCase() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("name")), like),
+                        cb.like(cb.lower(root.get("shortDesc")), like)
+                ));
+            }
+            if (f.getCategoryId() != null)
+                predicates.add(cb.equal(root.get("category").get("id"), f.getCategoryId()));
+            if (f.getBrandId() != null)
+                predicates.add(cb.equal(root.get("brand").get("id"), f.getBrandId()));
+            if (f.getMinPrice() != null)
+                predicates.add(cb.greaterThanOrEqualTo(root.get("price"), f.getMinPrice()));
+            if (f.getMaxPrice() != null)
+                predicates.add(cb.lessThanOrEqualTo(root.get("price"), f.getMaxPrice()));
+            if (f.getMinRating() != null)
+                predicates.add(cb.greaterThanOrEqualTo(root.get("avgRating"),
+                        new java.math.BigDecimal(f.getMinRating())));
+            if (f.getSkinType() != null && !f.getSkinType().isBlank())
+                predicates.add(cb.like(root.get("skinType"), "%" + f.getSkinType() + "%"));
+            if (Boolean.TRUE.equals(f.getIsFeatured()))
+                predicates.add(cb.isTrue(root.get("isFeatured")));
+            if (Boolean.TRUE.equals(f.getIsNewArrival()))
+                predicates.add(cb.isTrue(root.get("isNewArrival")));
+            if (Boolean.TRUE.equals(f.getIsBestSeller()))
+                predicates.add(cb.isTrue(root.get("isBestSeller")));
+            if (Boolean.TRUE.equals(f.getInStock()))
+                predicates.add(cb.greaterThan(root.get("stock"), 0));
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+    }
+
+    private Sort buildSort(String sortBy, String sortDir) {
+        String field = switch (sortBy == null ? "createdAt" : sortBy) {
+            case "price"  -> "price";
+            case "rating" -> "avgRating";
+            case "sold"   -> "soldCount";
+            default       -> "createdAt";
+        };
+        return "asc".equalsIgnoreCase(sortDir)
+                ? Sort.by(Sort.Direction.ASC, field)
+                : Sort.by(Sort.Direction.DESC, field);
+    }
+
+    private String generateUniqueSlug(String name, UUID existingId) {
+        String base = SlugUtils.slugify(name);
+        String slug = base;
+        int suffix = 1;
+        while (true) {
+            var existing = productRepository.findBySlug(slug);
+            // No conflict, or conflict is with the same entity being updated
+            if (existing.isEmpty()
+                    || (existingId != null && existing.get().getId().equals(existingId))) {
+                break;
+            }
+            slug = base + "-" + (suffix++);
+        }
+        return slug;
+    }
 }

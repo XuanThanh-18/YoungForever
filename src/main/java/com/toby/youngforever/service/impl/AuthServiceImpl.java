@@ -20,6 +20,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Random;
 import java.util.UUID;
@@ -158,8 +159,14 @@ public class AuthServiceImpl implements com.toby.youngforever.service.AuthServic
 
         // Rotate refresh token
         user.setRefreshToken(refreshToken);
-        user.setRefreshTokenExpiry(LocalDateTime.now().plusMillis(
-                appProperties.getJwt().getRefreshTokenExpiryMs()));
+        user.setRefreshTokenExpiry(
+                LocalDateTime.now().plus(
+                        Duration.ofMillis(
+                                appProperties.getJwt().getRefreshTokenExpiryMs()
+                        )
+                )
+        );
+
         userRepository.save(user);
 
         return AuthResponse.builder()

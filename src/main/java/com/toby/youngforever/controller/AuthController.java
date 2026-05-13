@@ -3,6 +3,7 @@ package com.toby.youngforever.controller;
 import com.toby.youngforever.dto.request.*;
 import com.toby.youngforever.dto.response.ApiResponse;
 import com.toby.youngforever.dto.response.AuthResponse;
+import com.toby.youngforever.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -17,21 +18,24 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Authentication", description = "Đăng ký, đăng nhập, quản lý token")
 public class AuthController {
 
-    private final AuthService authService;
+    private final AuthService authService;   // ← was missing in original upload
 
     @PostMapping("/register")
     @Operation(summary = "Đăng ký tài khoản mới")
     public ResponseEntity<ApiResponse<AuthResponse>> register(
             @Valid @RequestBody RegisterRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(authService.register(request), "Đăng ký thành công. Vui lòng xác thực email."));
+                .body(ApiResponse.success(
+                        authService.register(request),
+                        "Đăng ký thành công. Vui lòng xác thực email."));
     }
 
     @PostMapping("/login")
     @Operation(summary = "Đăng nhập")
     public ResponseEntity<ApiResponse<AuthResponse>> login(
             @Valid @RequestBody LoginRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(authService.login(request), "Đăng nhập thành công"));
+        return ResponseEntity.ok(ApiResponse.success(
+                authService.login(request), "Đăng nhập thành công"));
     }
 
     @PostMapping("/refresh")
@@ -42,7 +46,7 @@ public class AuthController {
     }
 
     @PostMapping("/forgot-password")
-    @Operation(summary = "Quên mật khẩu - gửi OTP qua email")
+    @Operation(summary = "Quên mật khẩu – gửi OTP qua email")
     public ResponseEntity<ApiResponse<Void>> forgotPassword(
             @Valid @RequestBody ForgotPasswordRequest request) {
         authService.forgotPassword(request);

@@ -1,8 +1,10 @@
 package com.toby.youngforever.controller;
+
 import com.toby.youngforever.dto.request.CreateProductRequest;
 import com.toby.youngforever.dto.request.ProductFilterRequest;
 import com.toby.youngforever.dto.request.UpdateProductRequest;
 import com.toby.youngforever.dto.response.*;
+import com.toby.youngforever.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,10 +23,10 @@ import java.util.UUID;
 @Tag(name = "Products", description = "Quản lý sản phẩm")
 public class ProductController {
 
-    private final ProductService productService;
+    private final ProductService productService;   // ← was missing in original upload
 
     @GetMapping
-    @Operation(summary = "Danh sách sản phẩm - lọc, tìm kiếm, phân trang")
+    @Operation(summary = "Danh sách sản phẩm – lọc, tìm kiếm, phân trang")
     public ResponseEntity<ApiResponse<PageResponse<ProductSummaryResponse>>> listProducts(
             ProductFilterRequest filter) {
         return ResponseEntity.ok(ApiResponse.success(productService.filterProducts(filter)));
@@ -59,7 +61,7 @@ public class ProductController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @SecurityRequirement(name = "bearerAuth")
-    @Operation(summary = "Xóa sản phẩm (ADMIN - soft delete)")
+    @Operation(summary = "Xóa sản phẩm (ADMIN – soft delete)")
     public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable UUID id) {
         productService.softDelete(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Đã xóa sản phẩm"));

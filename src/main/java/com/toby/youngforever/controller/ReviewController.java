@@ -3,6 +3,7 @@ package com.toby.youngforever.controller;
 import com.toby.youngforever.dto.request.CreateReviewRequest;
 import com.toby.youngforever.dto.response.*;
 import com.toby.youngforever.security.UserDetailsImpl;
+import com.toby.youngforever.service.ReviewService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -20,7 +21,7 @@ import java.util.UUID;
 @Tag(name = "Reviews", description = "Đánh giá sản phẩm")
 public class ReviewController {
 
-    private final ReviewService reviewService;
+    private final ReviewService reviewService;   // ← was missing in original upload
 
     @GetMapping("/products/{productId}")
     public ResponseEntity<ApiResponse<PageResponse<ReviewResponse>>> getProductReviews(
@@ -38,6 +39,7 @@ public class ReviewController {
             @Valid @RequestBody CreateReviewRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
-                        reviewService.create(user.getId(), request), "Cảm ơn bạn đã đánh giá!"));
+                        reviewService.create(user.getId(), request),
+                        "Cảm ơn bạn đã đánh giá!"));
     }
 }
