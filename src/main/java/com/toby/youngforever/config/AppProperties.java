@@ -2,7 +2,9 @@ package com.toby.youngforever.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 
@@ -16,6 +18,11 @@ public class AppProperties {
     private Mail mail = new Mail();
     private Pagination pagination = new Pagination();
     private Cors cors = new Cors();
+
+    @Bean
+    public RestTemplate restTemplate() {
+       return new RestTemplate();
+   }
 
     @Data
     public static class Jwt {

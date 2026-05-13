@@ -38,13 +38,16 @@ public class SecurityConfig {
 
     private static final String[] PUBLIC_GET = {
             "/products/**", "/categories/**", "/brands/**",
-            "/blogs/**", "/banners/**", "/reviews/**"
+            "/blogs/**", "/banners/**", "/reviews/**",
+            "/payments/vnpay/return"
     };
 
     private static final String[] PUBLIC_POST = {
             "/auth/register", "/auth/login",
             "/auth/refresh", "/auth/forgot-password",
-            "/auth/verify-email", "/auth/reset-password"
+            "/auth/verify-email", "/auth/reset-password",
+            "/payments/vnpay/ipn",
+            "/payments/momo/ipn"
     };
 
     private static final String[] SWAGGER_WHITELIST = {
