@@ -8,11 +8,11 @@ import {
   useProductFilters,
   type ProductFilters,
 } from "@/hooks/useProducts";
-import FilterSidebar from "@/components/product/FilterSidebar";
-import SortBar from "@/components/product/SortBar";
-import ProductGrid from "@/components/product/ProductGrid";
-import ProductListItem from "@/components/product/ProductListItem";
-import Pagination from "@/components/product/Pagination";
+import FilterSidebar from "./FilterSidebar";
+import SortBar from "./SortBar";
+import ProductGrid from "./ProductGrid";
+import ProductListItem from "./ProductListItem";
+import Pagination from "./Pagination";
 
 interface Props {
   initialCategories: CategoryResponse[];
