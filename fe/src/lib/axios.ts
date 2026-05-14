@@ -1,88 +1,92 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
+// ═══════════════════════════════════════════════════════════════════
+// FILE: fe/src/lib/axios.ts  (đã có – kiểm tra và cập nhật nếu cần)
+// ═══════════════════════════════════════════════════════════════════
+import axios from "axios";
+import Cookies from "js-cookie";
+import { useAuthStore } from "@/store/authStore";
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
-
-export const api = axios.create({
-  baseURL: BASE_URL,
-  timeout: 15000,
+const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api",
+  timeout: 15_000,
   headers: { "Content-Type": "application/json" },
 });
 
-// ── Token helpers ─────────────────────────────────────────────
-export const getAccessToken = () =>
-  typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-export const getRefreshToken = () =>
-  typeof window !== "undefined" ? localStorage.getItem("refresh_token") : null;
-export const setTokens = (access: string, refresh: string) => {
-  localStorage.setItem("access_token", access);
-  localStorage.setItem("refresh_token", refresh);
-};
-export const clearTokens = () => {
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("refresh_token");
-};
-
-// ── Request interceptor: đính JWT vào mỗi request ─────────────
-api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = getAccessToken();
+// ── Request interceptor: đính token vào mọi request ──────────────
+api.interceptors.request.use((config) => {
+  const token = Cookies.get("access_token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// ── Response interceptor: tự động refresh token khi 401 ───────
+// ── Response interceptor: auto refresh khi 401 ───────────────────
 let isRefreshing = false;
 let failedQueue: Array<{
-  resolve: (token: string) => void;
-  reject: (err: unknown) => void;
+  resolve: (value: string) => void;
+  reject: (reason: unknown) => void;
 }> = [];
 
 const processQueue = (error: unknown, token: string | null) => {
-  failedQueue.forEach((p) => (error ? p.reject(error) : p.resolve(token!)));
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) reject(error);
+    else resolve(token!);
+  });
   failedQueue = [];
 };
 
 api.interceptors.response.use(
   (res) => res,
-  async (error: AxiosError) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & {
-      _retry?: boolean;
-    };
+  async (error) => {
+    const original = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !original._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         }).then((token) => {
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-          return api(originalRequest);
+          original.headers.Authorization = `Bearer ${token}`;
+          return api(original);
         });
       }
 
-      originalRequest._retry = true;
+      original._retry = true;
       isRefreshing = true;
 
-      const refreshToken = getRefreshToken();
+      const refreshToken = Cookies.get("refresh_token");
       if (!refreshToken) {
-        clearTokens();
-        window.location.href = "/login";
+        useAuthStore.getState().logout();
+        isRefreshing = false;
         return Promise.reject(error);
       }
 
       try {
-        const { data } = await axios.post(`${BASE_URL}/auth/refresh`, {
-          refreshToken,
-        });
+        const { data } = await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
+          { refreshToken },
+        );
         const newAccess: string = data.data.accessToken;
         const newRefresh: string = data.data.refreshToken;
-        setTokens(newAccess, newRefresh);
+
+        Cookies.set("access_token", newAccess, {
+          expires: 1,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "strict",
+        });
+        Cookies.set("refresh_token", newRefresh, {
+          expires: 7,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "strict",
+        });
+
+        useAuthStore
+          .getState()
+          .setAuth(useAuthStore.getState().user!, newAccess, newRefresh);
+
         processQueue(null, newAccess);
-        originalRequest.headers.Authorization = `Bearer ${newAccess}`;
-        return api(originalRequest);
+        original.headers.Authorization = `Bearer ${newAccess}`;
+        return api(original);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        clearTokens();
-        window.location.href = "/login";
+        useAuthStore.getState().logout();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

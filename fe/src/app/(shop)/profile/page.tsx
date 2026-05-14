@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
+import type { FieldError, Path, UseFormRegister } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
@@ -72,6 +73,23 @@ const TABS = [
   { key: "address", label: "Địa chỉ giao hàng", icon: MapPin },
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
+
+// ─── PasswordField Props ──────────────────────────────────────
+interface PasswordFieldProps {
+  label: string;
+  name: Path<PasswordForm>;
+  show: boolean;
+  toggle: () => void;
+  error: FieldError | undefined;
+  register: UseFormRegister<PasswordForm>;
+}
+
+// ─── AddressField meta ────────────────────────────────────────
+interface AddressFieldMeta {
+  label: string;
+  name: Path<AddressForm>;
+  placeholder: string;
+}
 
 // ─── Profile Tab ──────────────────────────────────────────────
 function ProfileTab() {
@@ -237,6 +255,42 @@ function ProfileTab() {
   );
 }
 
+// ─── Password Field Component ─────────────────────────────────
+function PasswordField({
+  label,
+  name,
+  show,
+  toggle,
+  error,
+  register,
+}: PasswordFieldProps) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-stone-700 mb-1.5">
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          {...register(name)}
+          type={show ? "text" : "password"}
+          className={cn(
+            "w-full px-4 py-3 pr-10 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-rose-300",
+            error ? "border-red-300 bg-red-50" : "border-stone-200",
+          )}
+        />
+        <button
+          type="button"
+          onClick={toggle}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+        >
+          {show ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      </div>
+      {error && <p className="text-red-500 text-xs mt-1">{error.message}</p>}
+    </div>
+  );
+}
+
 // ─── Password Tab ─────────────────────────────────────────────
 function PasswordTab() {
   const [showCur, setShowCur] = useState(false);
@@ -255,7 +309,7 @@ function PasswordTab() {
 
   const newPass = watch("newPassword", "");
 
-  const strength = (p: string) => {
+  const strength = (p: string): number => {
     let s = 0;
     if (p.length >= 8) s++;
     if (/[A-Z]/.test(p)) s++;
@@ -286,32 +340,6 @@ function PasswordTab() {
     }
   };
 
-  const Field = ({ label, name, show, toggle, error }: any) => (
-    <div>
-      <label className="block text-sm font-medium text-stone-700 mb-1.5">
-        {label}
-      </label>
-      <div className="relative">
-        <input
-          {...register(name)}
-          type={show ? "text" : "password"}
-          className={cn(
-            "w-full px-4 py-3 pr-10 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-rose-300",
-            error ? "border-red-300 bg-red-50" : "border-stone-200",
-          )}
-        />
-        <button
-          type="button"
-          onClick={toggle}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
-        >
-          {show ? <EyeOff size={16} /> : <Eye size={16} />}
-        </button>
-      </div>
-      {error && <p className="text-red-500 text-xs mt-1">{error.message}</p>}
-    </div>
-  );
-
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 max-w-md">
       <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
@@ -324,19 +352,21 @@ function PasswordTab() {
         </p>
       </div>
 
-      <Field
+      <PasswordField
         label="Mật khẩu hiện tại"
         name="currentPassword"
         show={showCur}
         toggle={() => setShowCur(!showCur)}
         error={errors.currentPassword}
+        register={register}
       />
-      <Field
+      <PasswordField
         label="Mật khẩu mới"
         name="newPassword"
         show={showNew}
         toggle={() => setShowNew(!showNew)}
         error={errors.newPassword}
+        register={register}
       />
 
       {newPass && (
@@ -358,12 +388,13 @@ function PasswordTab() {
         </div>
       )}
 
-      <Field
+      <PasswordField
         label="Xác nhận mật khẩu mới"
         name="confirmPassword"
         show={showCon}
         toggle={() => setShowCon(!showCon)}
         error={errors.confirmPassword}
+        register={register}
       />
 
       <button
@@ -413,9 +444,23 @@ function AddressTab() {
     setEditing(null);
     setShowForm(true);
   };
+
   const openEdit = (addr: AddressResponse) => {
     setEditing(addr);
-    Object.entries(addr).forEach(([k, v]) => setValue(k as any, v));
+    // Populate only fields that belong to AddressForm
+    const fields: Array<{
+      key: Path<AddressForm>;
+      value: AddressForm[Path<AddressForm>];
+    }> = [
+      { key: "fullName", value: addr.fullName },
+      { key: "phone", value: addr.phone },
+      { key: "city", value: addr.city },
+      { key: "district", value: addr.district },
+      { key: "ward", value: addr.ward ?? "" },
+      { key: "street", value: addr.street },
+      { key: "isDefault", value: addr.isDefault },
+    ];
+    fields.forEach(({ key, value }) => setValue(key, value));
     setShowForm(true);
   };
 
@@ -425,7 +470,10 @@ function AddressTab() {
         await userApi.updateAddress(editing.id, data);
         toast.success("Cập nhật địa chỉ thành công!");
       } else {
-        await userApi.createAddress(data as any);
+        await userApi.createAddress({
+          ...data,
+          isDefault: data.isDefault ?? false,
+        });
         toast.success("Thêm địa chỉ thành công!");
       }
       setShowForm(false);
@@ -446,6 +494,23 @@ function AddressTab() {
     }
   };
 
+  // Address form field definitions – typed, no any
+  const addressFields: AddressFieldMeta[] = [
+    {
+      label: "Họ và tên người nhận",
+      name: "fullName",
+      placeholder: "Nguyễn Văn A",
+    },
+    { label: "Số điện thoại", name: "phone", placeholder: "0901234567" },
+    { label: "Tỉnh / Thành phố", name: "city", placeholder: "Hà Nội" },
+    { label: "Quận / Huyện", name: "district", placeholder: "Đống Đa" },
+    {
+      label: "Phường / Xã (không bắt buộc)",
+      name: "ward",
+      placeholder: "Phường Ô Chợ Dừa",
+    },
+  ];
+
   if (loading)
     return (
       <div className="space-y-3">
@@ -464,17 +529,8 @@ function AddressTab() {
         <>
           {addresses.length === 0 ? (
             <div className="text-center py-12">
-              <MapPin
-                size={40}
-                strokeWidth={1}
-                className="mx-auto mb-3 text-stone-300"
-              />
-              <p className="text-stone-500 font-medium mb-1">
-                Chưa có địa chỉ nào
-              </p>
-              <p className="text-stone-400 text-sm mb-5">
-                Thêm địa chỉ giao hàng để đặt hàng nhanh hơn
-              </p>
+              <MapPin size={32} className="mx-auto text-stone-200 mb-3" />
+              <p className="text-stone-400 text-sm">Chưa có địa chỉ nào</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -482,57 +538,61 @@ function AddressTab() {
                 <div
                   key={addr.id}
                   className={cn(
-                    "flex items-start gap-4 p-4 rounded-2xl border transition-all",
+                    "p-4 rounded-2xl border transition-all",
                     addr.isDefault
                       ? "border-rose-200 bg-rose-50"
-                      : "border-stone-100 bg-white hover:border-stone-200",
+                      : "border-stone-100 bg-white",
                   )}
                 >
-                  <div
-                    className={cn(
-                      "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0",
-                      addr.isDefault ? "bg-rose-100" : "bg-stone-100",
-                    )}
-                  >
-                    {addr.isDefault ? (
-                      <Home size={16} className="text-rose-600" />
-                    ) : (
-                      <Briefcase size={16} className="text-stone-400" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-semibold text-stone-800">
-                        {addr.fullName}
-                      </p>
-                      <p className="text-sm text-stone-500">{addr.phone}</p>
-                      {addr.isDefault && (
-                        <span className="text-[10px] font-bold bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full">
-                          Mặc định
-                        </span>
-                      )}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div
+                        className={cn(
+                          "w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5",
+                          addr.isDefault ? "bg-rose-100" : "bg-stone-100",
+                        )}
+                      >
+                        {addr.isDefault ? (
+                          <Home size={14} className="text-rose-600" />
+                        ) : (
+                          <Briefcase size={14} className="text-stone-400" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-stone-800 text-sm">
+                            {addr.fullName}
+                          </p>
+                          <span className="text-stone-400 text-xs">
+                            {addr.phone}
+                          </span>
+                          {addr.isDefault && (
+                            <span className="text-[10px] bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full font-medium">
+                              Mặc định
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-stone-500 mt-0.5 leading-relaxed">
+                          {[addr.street, addr.ward, addr.district, addr.city]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-sm text-stone-500 mt-0.5 line-clamp-1">
-                      {[addr.street, addr.ward, addr.district, addr.city]
-                        .filter(Boolean)
-                        .join(", ")}
-                    </p>
-                  </div>
-                  <div className="flex gap-1 flex-shrink-0">
-                    <button
-                      onClick={() => openEdit(addr)}
-                      className="w-8 h-8 flex items-center justify-center text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    {!addr.isDefault && (
+                    <div className="flex gap-1 flex-shrink-0">
+                      <button
+                        onClick={() => openEdit(addr)}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                      >
+                        <Pencil size={13} />
+                      </button>
                       <button
                         onClick={() => handleDelete(addr.id)}
-                        className="w-8 h-8 flex items-center justify-center text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={13} />
                       </button>
-                    )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -541,15 +601,16 @@ function AddressTab() {
 
           <button
             onClick={openNew}
-            className="flex items-center gap-2 w-full py-3 border-2 border-dashed border-stone-200 hover:border-rose-300 hover:text-rose-600 text-stone-400 rounded-2xl transition-colors text-sm font-medium justify-center"
+            className="w-full py-3 border-2 border-dashed border-stone-200 rounded-2xl text-stone-400 hover:border-rose-300 hover:text-rose-500 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
           >
-            <Plus size={16} /> Thêm địa chỉ mới
+            <Plus size={16} />
+            Thêm địa chỉ mới
           </button>
         </>
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold text-stone-800">
+            <h3 className="font-semibold text-stone-800 text-sm">
               {editing ? "Sửa địa chỉ" : "Thêm địa chỉ mới"}
             </h3>
             <button
@@ -562,50 +623,24 @@ function AddressTab() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {[
-              {
-                label: "Họ và tên người nhận",
-                name: "fullName",
-                placeholder: "Nguyễn Văn A",
-              },
-              {
-                label: "Số điện thoại",
-                name: "phone",
-                placeholder: "0901234567",
-              },
-              {
-                label: "Tỉnh / Thành phố",
-                name: "city",
-                placeholder: "Hà Nội",
-              },
-              {
-                label: "Quận / Huyện",
-                name: "district",
-                placeholder: "Đống Đa",
-              },
-              {
-                label: "Phường / Xã (không bắt buộc)",
-                name: "ward",
-                placeholder: "Phường Ô Chợ Dừa",
-              },
-            ].map(({ label, name, placeholder }) => (
+            {addressFields.map(({ label, name, placeholder }) => (
               <div key={name}>
                 <label className="block text-sm font-medium text-stone-700 mb-1.5">
                   {label}
                 </label>
                 <input
-                  {...register(name as any)}
+                  {...register(name)}
                   placeholder={placeholder}
                   className={cn(
                     "w-full px-4 py-3 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-rose-300",
-                    (errors as any)[name]
+                    errors[name]
                       ? "border-red-300 bg-red-50"
                       : "border-stone-200",
                   )}
                 />
-                {(errors as any)[name] && (
+                {errors[name] && (
                   <p className="text-red-500 text-xs mt-1">
-                    {(errors as any)[name]?.message}
+                    {errors[name]?.message}
                   </p>
                 )}
               </div>

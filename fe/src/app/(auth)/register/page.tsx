@@ -1,13 +1,15 @@
+// fe/src/app/(auth)/register/page.tsx
 "use client";
 
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Eye, EyeOff, Loader2, UserPlus, CheckCircle } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
-import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
+import { authApi } from "@/lib/api";
+import { useAuthStore } from "@/store/authStore";
+import toast from "react-hot-toast";
 import axios from "axios";
 
 const schema = z
@@ -16,321 +18,128 @@ const schema = z
     email: z.string().email("Email không hợp lệ"),
     password: z
       .string()
-      .min(8, "Mật khẩu tối thiểu 8 ký tự")
+      .min(8, "Tối thiểu 8 ký tự")
       .regex(/[A-Z]/, "Cần ít nhất 1 chữ hoa")
       .regex(/[0-9]/, "Cần ít nhất 1 chữ số"),
     confirmPassword: z.string(),
-    agree: z.boolean().refine((v) => v === true, "Vui lòng đồng ý điều khoản"),
   })
   .refine((d) => d.password === d.confirmPassword, {
     message: "Mật khẩu xác nhận không khớp",
     path: ["confirmPassword"],
   });
-type FormData = z.infer<typeof schema>;
+
+type RegisterForm = z.infer<typeof schema>;
 
 export default function RegisterPage() {
-  const { register: registerUser } = useAuth();
-  const [showPass, setShowPass] = useState(false);
-  const [showCon, setShowCon] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+  const { setAuth } = useAuthStore();
 
   const {
     register,
     handleSubmit,
-    watch,
-    formState: { errors },
-    setError,
-  } = useForm<FormData>({
-    resolver: zodResolver(schema),
-    defaultValues: { agree: false },
-  });
+    formState: { errors, isSubmitting },
+  } = useForm<RegisterForm>({ resolver: zodResolver(schema) });
 
-  const password = watch("password", "");
-
-  // Password strength
-  const checks = [
-    { ok: password.length >= 8, text: "Ít nhất 8 ký tự" },
-    { ok: /[A-Z]/.test(password), text: "Ít nhất 1 chữ hoa" },
-    { ok: /[0-9]/.test(password), text: "Ít nhất 1 chữ số" },
-  ];
-  const strength = checks.filter((c) => c.ok).length;
-  const strengthMeta = [
-    null,
-    { label: "Yếu", bar: "bg-red-400" },
-    { label: "Trung bình", bar: "bg-amber-400" },
-    { label: "Mạnh", bar: "bg-emerald-500" },
-  ][strength];
-
-  const onSubmit = async (data: FormData) => {
-    setIsLoading(true);
+  const onSubmit = async (data: RegisterForm) => {
     try {
-      await registerUser(data.email, data.password, data.fullName);
+      const { data: res } = await authApi.register({
+        fullName: data.fullName,
+        email: data.email,
+        password: data.password,
+      });
+      setAuth(res.data.user, res.data.accessToken, res.data.refreshToken);
+      toast.success("Đăng ký thành công! Chào mừng bạn 🎉");
+      router.push("/");
     } catch (err: unknown) {
-      let msg = "Đăng ký thất bại. Vui lòng thử lại.";
-      if (axios.isAxiosError(err)) {
-        msg = err?.response?.data?.message ?? msg;
-      }
-      setError("email", { message: msg });
-    } finally {
-      setIsLoading(false);
+      const message = axios.isAxiosError(err)
+        ? (err.response?.data?.message ?? "Đăng ký thất bại")
+        : "Đăng ký thất bại";
+      toast.error(message);
     }
   };
 
+  const fields = [
+    {
+      name: "fullName" as const,
+      label: "Họ và tên",
+      type: "text",
+      placeholder: "Nguyễn Văn A",
+    },
+    {
+      name: "email" as const,
+      label: "Email",
+      type: "email",
+      placeholder: "your@email.com",
+    },
+    {
+      name: "password" as const,
+      label: "Mật khẩu",
+      type: "password",
+      placeholder: "••••••••",
+    },
+    {
+      name: "confirmPassword" as const,
+      label: "Xác nhận mật khẩu",
+      type: "password",
+      placeholder: "••••••••",
+    },
+  ];
+
   return (
-    <div className="min-h-screen flex">
-      {/* Left decorative panel */}
-      <div className="hidden lg:flex w-5/12 bg-gradient-to-br from-rose-500 to-pink-700 items-center justify-center p-12 relative overflow-hidden">
-        <div className="absolute -top-24 -right-24 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-pink-300/20 rounded-full blur-3xl" />
-        <div className="text-white text-center relative z-10 max-w-xs">
-          <div className="w-16 h-16 bg-white/20 rounded-3xl flex items-center justify-center mx-auto mb-6 backdrop-blur-sm">
-            <UserPlus size={28} className="text-white" />
-          </div>
-          <h1 className="text-4xl font-bold font-serif mb-4">YoungForever</h1>
-          <p className="text-rose-100 text-base leading-relaxed">
-            Tham gia cộng đồng hàng nghìn khách hàng yêu mỹ phẩm cao cấp của
-            chúng tôi.
-          </p>
-          <div className="mt-8 space-y-3">
-            {[
-              "Ưu đãi thành viên độc quyền",
-              "Tích điểm đổi quà hấp dẫn",
-              "Theo dõi đơn hàng realtime",
-            ].map((item) => (
-              <div
-                key={item}
-                className="flex items-center gap-2 text-sm text-rose-100"
-              >
-                <CheckCircle size={14} className="text-white flex-shrink-0" />
-                {item}
-              </div>
-            ))}
-          </div>
+    <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4 py-10">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl p-8 border border-stone-100">
+        <div className="text-center mb-8">
+          <h1
+            className="text-3xl font-bold"
+            style={{ fontFamily: "'Playfair Display', Georgia, serif" }}
+          >
+            <span className="text-rose-500">Young</span>
+            <span className="text-stone-800">Forever</span>
+          </h1>
+          <p className="text-stone-400 text-sm mt-2">Tạo tài khoản miễn phí</p>
         </div>
-      </div>
 
-      {/* Right form panel */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-10 bg-stone-50 overflow-y-auto">
-        <div className="w-full max-w-sm py-4">
-          <div className="mb-7">
-            <Link
-              href="/"
-              className="text-xl font-bold text-rose-600 font-serif lg:hidden block mb-5"
-            >
-              YoungForever
-            </Link>
-            <h2 className="text-2xl font-bold text-stone-800">Tạo tài khoản</h2>
-            <p className="text-stone-500 text-sm mt-1">
-              Đã có tài khoản?{" "}
-              <Link
-                href="/login"
-                className="text-rose-600 hover:underline font-medium"
-              >
-                Đăng nhập ngay
-              </Link>
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {/* Full name */}
-            <div>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {fields.map(({ name, label, type, placeholder }) => (
+            <div key={name}>
               <label className="block text-sm font-medium text-stone-700 mb-1.5">
-                Họ và tên
+                {label}
               </label>
               <input
-                {...register("fullName")}
-                placeholder="Nguyễn Thị Lan"
-                className={cn(
-                  "w-full px-4 py-3 rounded-xl border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300",
-                  errors.fullName
-                    ? "border-red-300 bg-red-50"
-                    : "border-stone-200 bg-white",
-                )}
+                {...register(name)}
+                type={type}
+                placeholder={placeholder}
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 ${
+                  errors[name] ? "border-red-300 bg-red-50" : "border-stone-200"
+                }`}
               />
-              {errors.fullName && (
+              {errors[name] && (
                 <p className="text-red-500 text-xs mt-1">
-                  {errors.fullName.message}
+                  {errors[name]?.message}
                 </p>
               )}
             </div>
+          ))}
 
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1.5">
-                Email
-              </label>
-              <input
-                {...register("email")}
-                type="email"
-                placeholder="hello@example.com"
-                className={cn(
-                  "w-full px-4 py-3 rounded-xl border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300",
-                  errors.email
-                    ? "border-red-300 bg-red-50"
-                    : "border-stone-200 bg-white",
-                )}
-              />
-              {errors.email && (
-                <p className="text-red-500 text-xs mt-1">
-                  {errors.email.message}
-                </p>
-              )}
-            </div>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 mt-2"
+          >
+            {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+            Đăng ký
+          </button>
+        </form>
 
-            {/* Password */}
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1.5">
-                Mật khẩu
-              </label>
-              <div className="relative">
-                <input
-                  {...register("password")}
-                  type={showPass ? "text" : "password"}
-                  placeholder="Tối thiểu 8 ký tự"
-                  className={cn(
-                    "w-full px-4 py-3 pr-10 rounded-xl border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300",
-                    errors.password
-                      ? "border-red-300 bg-red-50"
-                      : "border-stone-200 bg-white",
-                  )}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
-                >
-                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              {errors.password && (
-                <p className="text-red-500 text-xs mt-1">
-                  {errors.password.message}
-                </p>
-              )}
-
-              {/* Strength + checklist */}
-              {password && (
-                <div className="mt-2.5 space-y-2">
-                  <div className="flex gap-1">
-                    {[1, 2, 3].map((i) => (
-                      <div
-                        key={i}
-                        className={cn(
-                          "h-1 flex-1 rounded-full transition-all",
-                          i <= strength
-                            ? (strengthMeta?.bar ?? "bg-stone-200")
-                            : "bg-stone-200",
-                        )}
-                      />
-                    ))}
-                  </div>
-                  <div className="space-y-1">
-                    {checks.map(({ ok, text }) => (
-                      <div
-                        key={text}
-                        className={cn(
-                          "flex items-center gap-1.5 text-xs transition-colors",
-                          ok ? "text-emerald-600" : "text-stone-400",
-                        )}
-                      >
-                        <CheckCircle
-                          size={11}
-                          className={ok ? "text-emerald-500" : "text-stone-300"}
-                        />
-                        {text}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Confirm password */}
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1.5">
-                Xác nhận mật khẩu
-              </label>
-              <div className="relative">
-                <input
-                  {...register("confirmPassword")}
-                  type={showCon ? "text" : "password"}
-                  placeholder="Nhập lại mật khẩu"
-                  className={cn(
-                    "w-full px-4 py-3 pr-10 rounded-xl border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300",
-                    errors.confirmPassword
-                      ? "border-red-300 bg-red-50"
-                      : "border-stone-200 bg-white",
-                  )}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCon(!showCon)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
-                >
-                  {showCon ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              {errors.confirmPassword && (
-                <p className="text-red-500 text-xs mt-1">
-                  {errors.confirmPassword.message}
-                </p>
-              )}
-            </div>
-
-            {/* Terms */}
-            <label className="flex items-start gap-2.5 cursor-pointer">
-              <input
-                {...register("agree")}
-                type="checkbox"
-                className="accent-rose-600 w-4 h-4 mt-0.5 flex-shrink-0"
-              />
-              <span className="text-xs text-stone-500 leading-relaxed">
-                Tôi đồng ý với{" "}
-                <Link
-                  href="/terms"
-                  className="text-rose-600 hover:underline font-medium"
-                >
-                  Điều khoản dịch vụ
-                </Link>{" "}
-                và{" "}
-                <Link
-                  href="/privacy"
-                  className="text-rose-600 hover:underline font-medium"
-                >
-                  Chính sách bảo mật
-                </Link>{" "}
-                của YoungForever
-              </span>
-            </label>
-            {errors.agree && (
-              <p className="text-red-500 text-xs -mt-2">
-                {errors.agree.message}
-              </p>
-            )}
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white font-semibold rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 text-sm shadow-sm"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" /> Đang tạo tài
-                  khoản...
-                </>
-              ) : (
-                <>
-                  <UserPlus size={16} /> Tạo tài khoản
-                </>
-              )}
-            </button>
-          </form>
-
-          <p className="text-center text-xs text-stone-400 mt-6">
-            Bằng cách đăng ký, bạn xác nhận đã đủ 18 tuổi.
-          </p>
-        </div>
+        <p className="text-center text-sm text-stone-500 mt-6">
+          Đã có tài khoản?{" "}
+          <Link
+            href="/login"
+            className="text-rose-600 font-semibold hover:underline"
+          >
+            Đăng nhập
+          </Link>
+        </p>
       </div>
     </div>
   );
