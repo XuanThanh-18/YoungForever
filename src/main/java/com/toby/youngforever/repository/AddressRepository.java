@@ -23,6 +23,6 @@ public interface AddressRepository extends JpaRepository<Address, UUID> {
     void clearDefaultByUserId(@Param("userId") UUID userId);
 
     @Modifying
-    @Query("UPDATE Address a SET a.deletedAt = NOW() WHERE a.id = :id AND a.user.id = :userId")
+    @Query("UPDATE Address a SET a.deletedAt = CURRENT_TIMESTAMP WHERE a.id = :id AND a.user.id = :userId")
     void softDeleteByIdAndUserId(@Param("id") UUID id, @Param("userId") UUID userId);
 }

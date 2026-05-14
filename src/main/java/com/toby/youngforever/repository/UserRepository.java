@@ -16,6 +16,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     boolean existsByPhone(String phone);
 
     @Modifying
-    @Query("UPDATE User u SET u.deletedAt = NOW() WHERE u.id = :id")
+    @Query("UPDATE User u SET u.deletedAt = CURRENT_TIMESTAMP WHERE u.id = :id")
     void softDeleteById(UUID id);
 }
