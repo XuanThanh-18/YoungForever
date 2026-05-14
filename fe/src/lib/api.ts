@@ -108,7 +108,6 @@ export const productApi = {
   getBySlug: (slug: string) =>
     api.get<ApiResponse<ProductResponse>>(`/products/${slug}`),
 };
-
 // ─── Categories ──────────────────────────────────────────────
 export const categoryApi = {
   getAll: () => api.get<ApiResponse<CategoryResponse[]>>("/categories"),
@@ -210,10 +209,12 @@ export const wishlistApi = {
 
 // ─── Reviews ─────────────────────────────────────────────────
 export const reviewApi = {
-  getByProduct: (productId: string, page = 0, size = 10) =>
+  getProductReviews: (productId: string, page = 0, size = 5) =>
     api.get<ApiResponse<PageResponse<ReviewResponse>>>(
-      `/reviews/products/${productId}`,
-      { params: { page, size } },
+      `/reviews/product/${productId}`,
+      {
+        params: { page, size },
+      },
     ),
 
   create: (data: {
