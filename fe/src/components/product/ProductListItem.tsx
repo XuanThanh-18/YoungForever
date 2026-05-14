@@ -12,10 +12,22 @@ interface Props {
 }
 
 export default function ProductListItem({ product }: Props) {
-  const { addItem, isLoading } = useCartStore();
+  const { addItem, isLoading: cartLoading } = useCartStore();
   const { isWishlisted, toggle } = useWishlist(product.id);
 
-  const effectivePrice = product.salePrice ?? product.originalPrice;
+  // Tính giá hiển thị và discount (dùng đúng field từ backend)
+  const effectivePrice = product.salePrice ?? product.price;
+  const isOnSale = !!(product.salePrice && product.salePrice < product.price);
+  const discountPercent =
+    isOnSale && product.salePrice
+      ? Math.round(((product.price - product.salePrice) / product.price) * 100)
+      : 0;
+  const rating = product.avgRating; // backend field name
+
+  const handleAddToCart = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    await addItem(product.id, 1);
+  };
 
   return (
     <div className="group bg-white rounded-2xl border border-stone-100 hover:border-rose-100 hover:shadow-sm transition-all duration-300 flex gap-4 p-3 sm:p-4">
@@ -31,11 +43,13 @@ export default function ProductListItem({ product }: Props) {
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-rose-50 to-pink-100" />
+          <div className="w-full h-full bg-gradient-to-br from-rose-50 to-pink-100 flex items-center justify-center">
+            <ShoppingBag size={24} className="text-rose-200" />
+          </div>
         )}
-        {product.isOnSale && (
+        {isOnSale && (
           <span className="absolute top-2 left-2 bg-rose-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-            -{product.discountPercent}%
+            -{discountPercent}%
           </span>
         )}
       </Link>
@@ -70,14 +84,14 @@ export default function ProductListItem({ product }: Props) {
                     key={i}
                     size={11}
                     className={
-                      i < Math.round(product.averageRating ?? 0)
+                      i < Math.round(Number(rating ?? 0))
                         ? "text-amber-400 fill-amber-400"
                         : "text-stone-200 fill-stone-200"
                     }
                   />
                 ))}
               </div>
-              <span className="text-xs text-stone-500">
+              <span className="text-[10px] text-stone-400">
                 ({product.reviewCount})
               </span>
             </div>
@@ -85,46 +99,51 @@ export default function ProductListItem({ product }: Props) {
         </div>
 
         {/* Price + Actions */}
-        <div className="flex items-center justify-between mt-3 gap-3">
-          <div className="flex items-baseline gap-2">
-            <span className="text-base sm:text-lg font-bold text-rose-600">
+        <div className="flex items-center justify-between mt-3 gap-2">
+          <div>
+            <span className="text-base font-bold text-stone-900">
               {formatVnd(effectivePrice)}
             </span>
-            {product.isOnSale && (
-              <span className="text-xs text-stone-400 line-through">
-                {formatVnd(product.originalPrice)}
+            {isOnSale && (
+              <span className="ml-2 text-xs text-stone-400 line-through">
+                {formatVnd(product.price)}
               </span>
             )}
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Wishlist */}
             <button
               onClick={toggle}
               className={cn(
                 "w-8 h-8 rounded-xl border flex items-center justify-center transition-colors",
                 isWishlisted
-                  ? "border-rose-200 bg-rose-50 text-rose-600"
+                  ? "border-rose-200 text-rose-600 bg-rose-50"
                   : "border-stone-200 text-stone-400 hover:border-rose-200 hover:text-rose-400",
               )}
             >
               <Heart size={14} fill={isWishlisted ? "currentColor" : "none"} />
             </button>
-            {product.stock > 0 && (
-              <button
-                onClick={() => addItem(product.id, 1)}
-                disabled={isLoading}
-                className="flex items-center gap-1.5 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-xl transition-colors disabled:opacity-60"
-              >
-                <ShoppingBag size={12} />
-                <span className="hidden sm:inline">Thêm vào giỏ</span>
-                <span className="sm:hidden">Thêm</span>
-              </button>
-            )}
-            {product.stock === 0 && (
-              <span className="px-3 py-2 text-xs text-stone-400 border border-stone-200 rounded-xl">
-                Hết hàng
+
+            {/* Add to cart */}
+            <button
+              onClick={handleAddToCart}
+              disabled={cartLoading || product.stock === 0}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all",
+                product.stock === 0
+                  ? "bg-stone-100 text-stone-400 cursor-not-allowed"
+                  : "bg-rose-600 text-white hover:bg-rose-700 active:scale-95",
+              )}
+            >
+              <ShoppingBag size={13} />
+              <span className="hidden sm:inline">
+                {product.stock === 0 ? "Hết hàng" : "Thêm vào giỏ"}
               </span>
-            )}
+              <span className="sm:hidden">
+                {product.stock === 0 ? "Hết" : "Mua"}
+              </span>
+            </button>
           </div>
         </div>
       </div>

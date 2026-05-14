@@ -1,13 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { SlidersHorizontal } from "lucide-react";
 import type { CategoryResponse, BrandResponse } from "@/types";
-import {
-  useProducts,
-  useProductFilters,
-  type ProductFilters,
-} from "@/hooks/useProducts";
+import { useProducts, useProductFilters } from "@/hooks/useProducts";
 import FilterSidebar from "./FilterSidebar";
 import SortBar from "./SortBar";
 import ProductGrid from "./ProductGrid";
@@ -17,13 +12,11 @@ import Pagination from "./Pagination";
 interface Props {
   initialCategories: CategoryResponse[];
   initialBrands: BrandResponse[];
-  initialFilters: ProductFilters;
 }
 
 export default function ProductsClient({
   initialCategories,
   initialBrands,
-  initialFilters,
 }: Props) {
   const { filters, setFilters, setPage, resetFilters, hasActiveFilters } =
     useProductFilters();

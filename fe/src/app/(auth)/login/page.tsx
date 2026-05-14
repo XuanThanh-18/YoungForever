@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import axios from "axios";
 
 const schema = z.object({
   email: z.string().email("Email không hợp lệ"),
@@ -32,9 +33,11 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await login(data.email, data.password);
-    } catch (err: any) {
-      const msg =
-        err?.response?.data?.message || "Email hoặc mật khẩu không đúng";
+    } catch (err: unknown) {
+      let msg = "Email hoặc mật khẩu không đúng";
+      if (axios.isAxiosError(err)) {
+        msg = err?.response?.data?.message || msg;
+      }
       setError("password", { message: msg });
     } finally {
       setIsLoading(false);

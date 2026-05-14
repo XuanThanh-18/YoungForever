@@ -41,22 +41,21 @@ export interface ProductSummaryResponse {
   slug: string;
   primaryImageUrl?: string;
 
-  // Giá
-  price: number; // giá gốc
-  salePrice?: number; // giá khuyến mãi (nếu có)
-  effectivePrice: number; // = salePrice ?? price (backend tính sẵn)
+  // Giá (số – frontend nhận về dạng number sau JSON parse)
+  price: number;
+  salePrice?: number;
+  effectivePrice: number;
 
   // Flags
-  isOnSale?: boolean; // fe tự tính: salePrice != null
-  discountPercent?: number; // fe tự tính: Math.round((price-salePrice)/price*100)
+  isOnSale?: boolean;
+  discountPercent?: number;
   isBestSeller?: boolean;
   isNewArrival?: boolean;
   isFeatured?: boolean;
 
-  // Rating
-  avgRating?: number; // backend field: avgRating (BigDecimal)
+  // Rating – backend trả về field avgRating (BigDecimal → number)
+  avgRating?: number;
   reviewCount?: number;
-  averageRating?: number; // alias nếu cần
 
   // Stock
   stock?: number;
@@ -68,6 +67,7 @@ export interface ProductSummaryResponse {
 
 export interface ProductResponse extends ProductSummaryResponse {
   description?: string;
+  shortDesc?: string;
   ingredients?: string;
   howToUse?: string;
   images: ProductImageResponse[];
@@ -118,29 +118,26 @@ export interface CategoryResponse {
   imageUrl?: string;
   children?: CategoryResponse[];
 }
-// ── Helper để tính discountPercent và isOnSale ───────────────────
-export function enrichProduct(
-  p: ProductSummaryResponse,
-): ProductSummaryResponse & {
-  isOnSale: boolean;
-  discountPercent: number;
-  originalPrice: number;
-  averageRating?: number;
-} {
-  const originalPrice = p.price;
-  const isOnSale = !!(p.salePrice && p.salePrice < p.price);
-  const discountPercent =
-    isOnSale && p.salePrice
-      ? Math.round(((p.price - p.salePrice) / p.price) * 100)
-      : 0;
 
-  return {
-    ...p,
-    originalPrice,
-    isOnSale,
-    discountPercent,
-    averageRating: p.avgRating,
-  };
+// ─── Filter request ──────────────────────────────────────────
+export interface ProductFilterRequest {
+  keyword?: string;
+  categorySlug?: string;
+  brandSlug?: string;
+  categoryId?: string;
+  brandId?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  minRating?: number;
+  skinType?: string;
+  isFeatured?: boolean;
+  isNewArrival?: boolean;
+  isBestSeller?: boolean;
+  inStock?: boolean;
+  sortBy?: "name" | "price" | "createdAt" | "avgRating" | "soldCount";
+  sortDir?: "asc" | "desc";
+  page?: number;
+  size?: number;
 }
 
 // ─── Cart ────────────────────────────────────────────────────
@@ -296,17 +293,4 @@ export interface CouponResponse {
   maxDiscount?: number;
   calculatedDiscount: number;
   expiresAt?: string;
-}
-
-// ─── Filter ──────────────────────────────────────────────────
-export interface ProductFilterRequest {
-  keyword?: string;
-  categorySlug?: string;
-  brandSlug?: string;
-  minPrice?: number;
-  maxPrice?: number;
-  sortBy?: "name" | "price" | "createdAt" | "averageRating";
-  sortDir?: "asc" | "desc";
-  page?: number;
-  size?: number;
 }

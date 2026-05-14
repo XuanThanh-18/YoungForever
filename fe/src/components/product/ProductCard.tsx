@@ -14,15 +14,19 @@ interface Props {
 export default function ProductCard({ product }: Props) {
   const { addItem, isLoading: cartLoading } = useCartStore();
   const { isWishlisted, toggle: toggleWishlist } = useWishlist(product.id);
-  const price = product.salePrice ?? product.price;
-  const originalPrice = product.price;
+
+  const effectivePrice = product.salePrice ?? product.price;
   const isOnSale = !!(product.salePrice && product.salePrice < product.price);
   const discountPct =
     isOnSale && product.salePrice
       ? Math.round(((product.price - product.salePrice) / product.price) * 100)
       : 0;
-  const rating = product.avgRating; // backend field name
-  const hasDiscount = product.isOnSale && product.salePrice;
+  const rating = product.avgRating; // đúng field name từ backend
+
+  const handleAddToCart = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    await addItem(product.id, 1);
+  };
 
   return (
     <div className="group relative bg-white rounded-2xl border border-stone-100 overflow-hidden hover:shadow-md hover:border-rose-100 transition-all duration-300">
@@ -45,9 +49,14 @@ export default function ProductCard({ product }: Props) {
 
         {/* Badges */}
         <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-          {hasDiscount && (
+          {isOnSale && (
             <span className="bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-              -{product.discountPercent}%
+              -{discountPct}%
+            </span>
+          )}
+          {product.isNewArrival && !isOnSale && (
+            <span className="bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+              Mới
             </span>
           )}
           {product.stock === 0 && (
@@ -75,39 +84,33 @@ export default function ProductCard({ product }: Props) {
           <Heart size={15} fill={isWishlisted ? "currentColor" : "none"} />
         </button>
 
-        {/* Quick add */}
-        {product.stock > 0 && (
+        {/* Quick add – hover overlay */}
+        <div className="absolute inset-x-0 bottom-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300">
           <button
-            onClick={(e) => {
-              e.preventDefault();
-              addItem(product.id, 1);
-            }}
-            disabled={cartLoading}
+            onClick={handleAddToCart}
+            disabled={cartLoading || product.stock === 0}
             className={cn(
-              "absolute bottom-0 left-0 right-0 bg-rose-600 text-white text-xs font-semibold py-2.5",
-              "flex items-center justify-center gap-1.5",
-              "translate-y-full group-hover:translate-y-0 transition-transform duration-300",
-              "disabled:opacity-70",
+              "w-full py-2.5 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors",
+              product.stock === 0
+                ? "bg-stone-300 text-stone-500 cursor-not-allowed"
+                : "bg-rose-600 text-white hover:bg-rose-700",
             )}
           >
             <ShoppingBag size={13} />
-            Thêm vào giỏ
+            {product.stock === 0 ? "Hết hàng" : "Thêm vào giỏ hàng"}
           </button>
-        )}
+        </div>
       </Link>
 
       {/* Info */}
       <div className="p-3">
-        {/* Brand */}
         {product.brand && (
-          <p className="text-[10px] text-stone-400 uppercase tracking-widest font-medium mb-1">
+          <p className="text-[10px] text-stone-400 uppercase tracking-widest font-medium mb-1 truncate">
             {product.brand.name}
           </p>
         )}
-
-        {/* Name */}
         <Link href={`/products/${product.slug}`}>
-          <h3 className="text-sm font-medium text-stone-800 hover:text-rose-600 line-clamp-2 leading-snug transition-colors">
+          <h3 className="text-sm font-semibold text-stone-800 hover:text-rose-600 line-clamp-2 transition-colors leading-snug min-h-[2.5rem]">
             {product.name}
           </h3>
         </Link>
@@ -115,21 +118,33 @@ export default function ProductCard({ product }: Props) {
         {/* Rating */}
         {(product.reviewCount ?? 0) > 0 && (
           <div className="flex items-center gap-1 mt-1.5">
-            <Star size={11} className="text-amber-400 fill-amber-400" />
-            <span className="text-[11px] text-stone-500">
-              {product.averageRating?.toFixed(1)} ({product.reviewCount})
+            <div className="flex">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Star
+                  key={i}
+                  size={10}
+                  className={
+                    i < Math.round(Number(rating ?? 0))
+                      ? "text-amber-400 fill-amber-400"
+                      : "text-stone-200 fill-stone-200"
+                  }
+                />
+              ))}
+            </div>
+            <span className="text-[10px] text-stone-400">
+              ({product.reviewCount})
             </span>
           </div>
         )}
 
         {/* Price */}
-        <div className="flex items-baseline gap-2 mt-2">
-          <span className="text-base font-bold text-rose-600">
-            {formatVnd(product.salePrice ?? product.originalPrice)}
+        <div className="mt-2 flex items-baseline gap-2">
+          <span className="text-base font-bold text-stone-900">
+            {formatVnd(effectivePrice)}
           </span>
-          {hasDiscount && (
+          {isOnSale && (
             <span className="text-xs text-stone-400 line-through">
-              {formatVnd(product.originalPrice)}
+              {formatVnd(product.price)}
             </span>
           )}
         </div>

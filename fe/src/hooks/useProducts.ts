@@ -54,7 +54,12 @@ export function parseFiltersFromUrl(
 /** Ghi filters ra URL */
 export function buildUrlFromFilters(filters: ProductFilters): string {
   const params = new URLSearchParams();
-  Object.entries(filters).forEach(([k, v]) => {
+  (
+    Object.entries(filters) as [
+      keyof ProductFilters,
+      ProductFilters[keyof ProductFilters],
+    ][]
+  ).forEach(([k, v]) => {
     if (v !== undefined && v !== null && v !== "" && v !== false) {
       params.set(k, String(v));
     }
