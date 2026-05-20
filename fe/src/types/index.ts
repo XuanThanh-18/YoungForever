@@ -168,7 +168,8 @@ export type OrderStatus =
   | "PROCESSING"
   | "SHIPPING"
   | "DELIVERED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "RETURNED";
 
 export type PaymentMethod = "COD" | "VNPAY" | "MOMO" | "BANK_TRANSFER";
 export type PaymentStatus =
@@ -180,33 +181,33 @@ export type PaymentStatus =
 
 export interface OrderResponse {
   id: string;
-  orderNumber: string;
+  userId: string;
   status: OrderStatus;
-  paymentMethod: PaymentMethod;
-  subtotal: number;
+  totalAmount: number;
   shippingFee: number;
   discountAmount: number;
-  totalAmount: number;
-  couponCode?: string;
-  shipFullName: string;
-  shipPhone: string;
-  shipAddress: string;
-  customerNote?: string;
+  paymentMethod: string;
+  paymentStatus: "PENDING" | "PAID" | "FAILED" | "REFUNDED";
+  shippingName: string;
+  shippingPhone: string;
+  shippingAddress: string;
+  adminNote?: string;
+  cancelReason?: string;
   items: OrderItemResponse[];
   createdAt: string;
   confirmedAt?: string;
+  shippedAt?: string;
   deliveredAt?: string;
-  cancelledAt?: string;
 }
 
 export interface OrderItemResponse {
   id: string;
   productId: string;
   productName: string;
+  productImage?: string;
   variantName?: string;
-  imageUrl?: string;
-  unitPrice: number;
   quantity: number;
+  unitPrice: number;
   totalPrice: number;
 }
 
