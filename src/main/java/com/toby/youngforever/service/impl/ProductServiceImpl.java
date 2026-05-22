@@ -7,12 +7,14 @@ import com.toby.youngforever.dto.response.PageResponse;
 import com.toby.youngforever.dto.response.ProductResponse;
 import com.toby.youngforever.dto.response.ProductSummaryResponse;
 import com.toby.youngforever.entity.Product;
+import com.toby.youngforever.entity.ProductImage;
 import com.toby.youngforever.exception.AppException;
 import com.toby.youngforever.exception.ErrorCode;
 import com.toby.youngforever.exception.ResourceNotFoundException;
 import com.toby.youngforever.mapper.ProductMapper;
 import com.toby.youngforever.repository.BrandRepository;
 import com.toby.youngforever.repository.CategoryRepository;
+import com.toby.youngforever.repository.ProductImageRepository;
 import com.toby.youngforever.repository.ProductRepository;
 import com.toby.youngforever.service.ProductService;
 import com.toby.youngforever.util.SlugUtils;
@@ -41,6 +43,7 @@ public class ProductServiceImpl implements ProductService {
     private final CategoryRepository categoryRepository;
     private final BrandRepository brandRepository;
     private final ProductMapper productMapper;
+    private final ProductImageRepository productImageRepository;
 
     @Override
     public PageResponse<ProductSummaryResponse> filterProducts(ProductFilterRequest filter) {
@@ -77,7 +80,25 @@ public class ProductServiceImpl implements ProductService {
                     .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND)));
         }
 
-        return productMapper.toResponse(productRepository.save(product));
+        Product saved = productRepository.save(product);
+
+        // Lưu ảnh nếu có
+        if (request.getImageUrls() != null && !request.getImageUrls().isEmpty()) {
+            List<String> urls = request.getImageUrls();
+            for (int i = 0; i < urls.size(); i++) {
+                if (urls.get(i) == null || urls.get(i).isBlank()) continue;
+                ProductImage img = ProductImage.builder()
+                        .product(saved)
+                        .url(urls.get(i).trim())
+                        .isPrimary(i == 0)
+                        .sortOrder(i)
+                        .build();
+                productImageRepository.save(img);
+            }
+        }
+
+        return productMapper.toResponse(productRepository.findById(saved.getId())
+                .orElseThrow());
     }
 
     @Override

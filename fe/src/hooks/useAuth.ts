@@ -18,7 +18,7 @@ export function useAuth() {
     const { accessToken, refreshToken, user: userData } = data.data;
     setAuth(userData, accessToken, refreshToken);
     toast.success(`Chào mừng, ${userData.fullName}!`);
-    router.push(userData.role === "ADMIN" ? "/admin" : "/");
+    router.push(userData.role === "ROLE_ADMIN" ? "/admin" : "/");
   };
 
   const register = async (

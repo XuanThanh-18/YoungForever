@@ -3,6 +3,7 @@ package com.toby.youngforever.dto.request;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -37,4 +38,5 @@ public class CreateProductRequest {
     private Boolean isNewArrival = false;
     private String metaTitle;
     private String metaDesc;
+    private List<String> imageUrls;
 }

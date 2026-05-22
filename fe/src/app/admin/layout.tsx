@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -34,14 +34,34 @@ export default function AdminLayout({
   const router = useRouter();
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
+  const [hasHydrated, setHasHydrated] = useState(false);
+
+  // Chờ Zustand hydrate từ localStorage xong
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setHasHydrated(true);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
-    if (!user || user.role !== "ADMIN") {
+    if (!hasHydrated) return; // chưa hydrate → chưa redirect
+    if (!user || user.role !== "ROLE_ADMIN") {
       router.replace("/login");
     }
-  }, [user, router]);
+  }, [user, router, hasHydrated]);
 
-  if (!user || user.role !== "ADMIN") return null;
+  // Hiển thị loading trong khi chờ hydrate
+  if (!hasHydrated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F9F7F5]">
+        <div className="w-6 h-6 border-2 border-[#E8A4B8] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user || user.role !== "ROLE_ADMIN") return null;
 
   const handleLogout = () => {
     logout();
@@ -78,12 +98,12 @@ export default function AdminLayout({
                 href={item.href}
                 className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
                   active
-                    ? "bg-[#E8A4B8] text-[#1A1614]"
-                    : "text-white/60 hover:bg-white/8 hover:text-white"
+                    ? "bg-white/10 text-white"
+                    : "text-white/60 hover:bg-white/5 hover:text-white"
                 }`}
               >
                 <Icon size={16} />
-                {item.label}
+                <span>{item.label}</span>
                 {active && <ChevronRight size={14} className="ml-auto" />}
               </Link>
             );
@@ -91,22 +111,23 @@ export default function AdminLayout({
         </nav>
 
         {/* User info + logout */}
-        <div className="px-4 pb-6 border-t border-white/10 pt-4">
-          <div className="flex items-center gap-3 mb-4 px-2">
-            <div className="w-8 h-8 rounded-full bg-[#E8A4B8]/30 flex items-center justify-center text-[#E8A4B8] text-sm font-semibold">
+        <div className="px-4 py-4 border-t border-white/10">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 rounded-full bg-[#E8A4B8]/20 flex items-center justify-center text-[#E8A4B8] text-xs font-bold">
               {user.fullName?.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-medium truncate">{user.fullName}</p>
-              <p className="text-[11px] text-white/40 truncate">{user.email}</p>
+              <p className="text-sm font-medium text-white truncate">
+                {user.fullName}
+              </p>
+              <p className="text-[10px] text-white/40 truncate">{user.email}</p>
             </div>
           </div>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-white/60 hover:bg-white/8 hover:text-white transition-all"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white/60 hover:bg-white/5 hover:text-white transition-all"
           >
-            <LogOut size={15} />
-            Đăng xuất
+            <LogOut size={14} /> Đăng xuất
           </button>
         </div>
       </aside>

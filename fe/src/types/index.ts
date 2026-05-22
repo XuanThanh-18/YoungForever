@@ -28,7 +28,7 @@ export interface UserResponse {
   fullName: string;
   phone?: string;
   avatarUrl?: string;
-  role: "CUSTOMER" | "ADMIN" | "STAFF";
+  role: "ROLE_USER" | "ROLE_ADMIN" | "ROLE_STAFF";
   isActive: boolean;
   emailVerified: boolean;
   createdAt: string;
