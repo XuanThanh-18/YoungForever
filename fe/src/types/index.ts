@@ -40,6 +40,7 @@ export interface ProductSummaryResponse {
   name: string;
   slug: string;
   primaryImageUrl?: string;
+  images?: ProductImageResponse[];
 
   // Giá (số – frontend nhận về dạng number sau JSON parse)
   price: number;

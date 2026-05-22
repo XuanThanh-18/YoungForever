@@ -31,6 +31,9 @@ interface ProductForm {
   isFeatured: boolean;
   isNewArrival: boolean;
   isBestSeller: boolean;
+  imageUrl1: string;
+  imageUrl2: string;
+  imageUrl3: string;
 }
 const EMPTY_FORM: ProductForm = {
   name: "",
@@ -44,6 +47,9 @@ const EMPTY_FORM: ProductForm = {
   isFeatured: false,
   isNewArrival: false,
   isBestSeller: false,
+  imageUrl1: "",
+  imageUrl2: "",
+  imageUrl3: "",
 };
 
 function fmt(v: number) {
@@ -142,12 +148,18 @@ export default function AdminProductsPage() {
       isFeatured: p.isFeatured ?? false,
       isNewArrival: p.isNewArrival ?? false,
       isBestSeller: p.isBestSeller ?? false,
+      imageUrl1: p.images?.[0]?.url ?? "",
+      imageUrl2: p.images?.[1]?.url ?? "",
+      imageUrl3: p.images?.[2]?.url ?? "",
     });
     setShowModal(true);
   };
 
   const handleSave = async () => {
     setSaving(true);
+    const imageUrls = [form.imageUrl1, form.imageUrl2, form.imageUrl3].filter(
+      Boolean,
+    );
     try {
       const payload = {
         ...form,
@@ -156,6 +168,7 @@ export default function AdminProductsPage() {
         stock: parseInt(form.stock, 10),
         categoryId: form.categoryId || undefined,
         brandId: form.brandId || undefined,
+        imageUrls,
       };
       if (editId) {
         await axiosInstance.put(`/products/${editId}`, payload);
@@ -367,6 +380,37 @@ export default function AdminProductsPage() {
                   onChange={(e) => setField("description", e.target.value)}
                   className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E8A4B8] resize-none"
                 />
+              </div>
+              {/* Ảnh sản phẩm */}
+              <div className="col-span-2 space-y-3">
+                <label className="text-xs font-medium text-stone-500 block">
+                  Ảnh sản phẩm (tối đa 3 URL – ảnh đầu là ảnh chính)
+                </label>
+                {(["imageUrl1", "imageUrl2", "imageUrl3"] as const).map(
+                  (key, i) => (
+                    <div key={key} className="flex items-center gap-2">
+                      <span className="text-xs text-stone-400 w-16 shrink-0">
+                        {i === 0 ? "Ảnh chính" : `Ảnh phụ ${i}`}
+                      </span>
+                      <input
+                        value={form[key]}
+                        onChange={(e) => setField(key, e.target.value)}
+                        placeholder={`https://...`}
+                        className="flex-1 border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E8A4B8]"
+                      />
+                      {form[key] && (
+                        <img
+                          src={form[key]}
+                          alt=""
+                          className="w-10 h-10 rounded-lg object-cover border border-stone-100"
+                          onError={(e) =>
+                            (e.currentTarget.style.display = "none")
+                          }
+                        />
+                      )}
+                    </div>
+                  ),
+                )}
               </div>
               <div>
                 <label className="text-xs font-medium text-stone-500 mb-1 block">

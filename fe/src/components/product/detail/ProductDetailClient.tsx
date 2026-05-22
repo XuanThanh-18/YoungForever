@@ -89,7 +89,7 @@ export default function ProductDetailClient({ product }: Props) {
       </nav>
 
       {/* Main product section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 bg-white rounded-3xl border border-stone-100 p-6 lg:p-10 mb-8 shadow-sm">
+      <div className="grid grid-cols-1 lg:grid-cols-[40%_60%] gap-8 lg:gap-12 bg-white rounded-3xl border border-stone-100 p-6 lg:p-10 mb-8 shadow-sm">
         {/* Left: Image Gallery */}
         <ProductImageGallery
           images={product.images ?? []}
