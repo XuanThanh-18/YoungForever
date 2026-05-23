@@ -29,4 +29,6 @@ public interface ProductService {
     @Transactional
     @CacheEvict(value = "products", allEntries = true)
     void softDelete(UUID id);
+
+    void recordView(UUID productId);
 }

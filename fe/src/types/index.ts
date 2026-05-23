@@ -28,9 +28,12 @@ export interface UserResponse {
   fullName: string;
   phone?: string;
   avatarUrl?: string;
-  role: "ROLE_USER" | "ROLE_ADMIN" | "ROLE_STAFF";
+  // FIX BUG 9: backend trả về "USER" / "ADMIN" / "STAFF" không có prefix "ROLE_"
+  // Spring Security thêm prefix khi build GrantedAuthority, nhưng JSON response
+  // từ UserMapper dùng enum.name() → "USER", "ADMIN", "STAFF"
+  role: "USER" | "ADMIN" | "STAFF";
   isActive: boolean;
-  emailVerified: boolean; // ← maps to backend isVerified
+  emailVerified: boolean;
   createdAt: string;
 }
 
@@ -39,12 +42,13 @@ export interface ProductSummaryResponse {
   id: string;
   name: string;
   slug: string;
+  sku?: string;
   primaryImageUrl?: string;
   images?: ProductImageResponse[];
   price: number;
   salePrice?: number;
   effectivePrice: number;
-  isActive?: boolean; // ← ADD
+  isActive?: boolean;
   isOnSale?: boolean;
   discountPercent?: number;
   isBestSeller?: boolean;
@@ -62,6 +66,9 @@ export interface ProductResponse extends ProductSummaryResponse {
   shortDesc?: string;
   ingredients?: string;
   howToUse?: string;
+  skinType?: string;
+  weightGram?: number;
+  volumeMl?: number;
   images: ProductImageResponse[];
   variants: ProductVariantResponse[];
 }
@@ -77,8 +84,11 @@ export interface ProductImageResponse {
 export interface ProductVariantResponse {
   id: string;
   name: string;
+  sku?: string;
   price: number;
+  salePrice?: number;
   stock: number;
+  imageUrl?: string;
 }
 
 export interface BrandSummary {
@@ -99,11 +109,12 @@ export interface BrandResponse {
   name: string;
   slug: string;
   logoUrl?: string;
-  bannerUrl?: string; // ← ADD
-  description?: string; // ← ADD
-  country?: string; // ← ADD
-  website?: string; // ← ADD
-  isActive: boolean; // ← ADD (was missing)
+  bannerUrl?: string;
+  description?: string;
+  country?: string;
+  website?: string;
+  isActive: boolean;
+  sortOrder?: number;
 }
 
 export interface CategoryResponse {
@@ -112,9 +123,9 @@ export interface CategoryResponse {
   slug: string;
   description?: string;
   imageUrl?: string;
-  sortOrder?: number; // ← ADD
-  isActive?: boolean; // ← ADD
-  parent?: CategorySummary; // ← ADD (was missing)
+  sortOrder?: number;
+  isActive?: boolean;
+  parent?: CategorySummary;
   children?: CategoryResponse[];
 }
 
@@ -133,19 +144,93 @@ export interface ProductFilterRequest {
   isNewArrival?: boolean;
   isBestSeller?: boolean;
   inStock?: boolean;
-  sortBy?: "name" | "price" | "createdAt" | "avgRating" | "soldCount";
+  sortBy?: string;
   sortDir?: "asc" | "desc";
   page?: number;
   size?: number;
 }
 
-// ─── Cart ────────────────────────────────────────────────────
-export interface CartResponse {
-  items: CartItemResponse[];
-  totalItems: number;
+// ─── Order ───────────────────────────────────────────────────
+// FIX BUG 8: enum phải khớp với backend OrderStatus
+export type OrderStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "PROCESSING"
+  | "SHIPPING" // ← đúng là SHIPPING (không phải SHIPPED)
+  | "DELIVERED"
+  | "CANCELLED"
+  | "REFUNDED";
+
+export type PaymentMethod = "COD" | "VNPAY" | "MOMO";
+export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED";
+
+export interface OrderItemResponse {
+  id: string;
+  productId: string;
+  productName: string;
+  variantName?: string;
+  imageUrl?: string;
+  unitPrice: number;
+  quantity: number;
   totalPrice: number;
+  isReviewed?: boolean;
 }
 
+export interface OrderResponse {
+  id: string;
+  orderNumber: string;
+  status: OrderStatus;
+  paymentMethod: PaymentMethod;
+  subtotal: number;
+  shippingFee: number;
+  discountAmount: number;
+  totalAmount: number;
+  shipFullName?: string;
+  shipPhone?: string;
+  shipAddress?: string;
+  couponCode?: string;
+  customerNote?: string;
+  items: OrderItemResponse[];
+  createdAt: string;
+  updatedAt?: string;
+  deliveredAt?: string;
+  cancelledAt?: string;
+}
+
+export interface PlaceOrderRequest {
+  addressId: string;
+  paymentMethod: PaymentMethod;
+  couponCode?: string;
+  customerNote?: string;
+}
+
+// ─── Address ─────────────────────────────────────────────────
+export interface AddressResponse {
+  id: string;
+  fullName: string;
+  phone: string;
+  street: string;
+  ward?: string;
+  district: string;
+  city: string;
+  country: string;
+  postalCode?: string;
+  isDefault: boolean;
+}
+
+export interface CreateAddressRequest {
+  fullName: string;
+  phone: string;
+  street: string;
+  ward?: string;
+  district: string;
+  city: string;
+  country?: string;
+  postalCode?: string;
+  isDefault?: boolean;
+}
+
+// ─── Cart ────────────────────────────────────────────────────
 export interface CartItemResponse {
   id: string;
   productId: string;
@@ -160,133 +245,54 @@ export interface CartItemResponse {
   availableStock: number;
 }
 
-// ─── Order ───────────────────────────────────────────────────
-export type OrderStatus =
-  | "PENDING"
-  | "CONFIRMED"
-  | "PROCESSING"
-  | "SHIPPING"
-  | "DELIVERED"
-  | "CANCELLED"
-  | "RETURNED";
-
-export type PaymentMethod = "COD" | "VNPAY" | "MOMO" | "BANK_TRANSFER";
-export type PaymentStatus =
-  | "PENDING"
-  | "PAID"
-  | "FAILED"
-  | "REFUNDED"
-  | "CANCELLED";
-
-export interface OrderResponse {
-  id: string;
-  orderNumber?: string; // ← ADD
-  status: string;
-  paymentMethod?: string; // ← ADD
-  shippingName?: string; // ← ADD (was shippingName)
-  shippingPhone?: string; // ← ADD
-  shippingAddress?: string; // ← ADD
-  subtotal: number;
-  shippingFee: number;
-  discountAmount?: number;
+export interface CartResponse {
+  items: CartItemResponse[];
+  totalItems: number;
   totalAmount: number;
-  items?: OrderItemResponse[]; // ← ADD
-  createdAt: string;
-  updatedAt?: string;
 }
 
-export interface OrderItemResponse {
-  id: string;
+export interface AddToCartRequest {
   productId: string;
-  productName: string;
-  variantName?: string;
-  imageUrl?: string;
-  unitPrice: number;
+  variantId?: string;
   quantity: number;
-  totalPrice: number;
-}
-
-// ─── Payment ─────────────────────────────────────────────────
-export interface PaymentUrlResponse {
-  paymentId: string;
-  paymentUrl: string;
-  method: string;
-  orderNumber: string;
-}
-
-export interface PaymentResponse {
-  id: string;
-  orderId: string;
-  orderNumber: string;
-  method: PaymentMethod;
-  status: PaymentStatus;
-  amount: number;
-  currency: string;
-  transactionId?: string;
-  paidAt?: string;
-  createdAt: string;
-}
-
-// ─── Address ─────────────────────────────────────────────────
-export interface AddressResponse {
-  id: string;
-  fullName: string;
-  phone: string;
-  street: string;
-  ward?: string;
-  district: string;
-  city: string;
-  country?: string;
-  isDefault: boolean;
 }
 
 // ─── Review ──────────────────────────────────────────────────
 export interface ReviewResponse {
   id: string;
   userId: string;
-  userFullName: string;
-  userAvatarUrl?: string;
+  userName: string;
+  userAvatar?: string;
   rating: number;
   title?: string;
   comment?: string;
-  imageUrls?: string[];
-  isVerified: boolean;
+  isVerified?: boolean;
+  helpfulCount?: number;
+  images?: { id: string; url: string }[];
   createdAt: string;
-}
-
-// ─── Notification ────────────────────────────────────────────
-export interface NotificationResponse {
-  id: string;
-  type: string;
-  title: string;
-  body: string;
-  imageUrl?: string;
-  actionUrl?: string;
-  isRead: boolean;
-  readAt?: string;
-  createdAt: string;
-}
-
-// ─── Banner ──────────────────────────────────────────────────
-export interface BannerResponse {
-  id: string;
-  title?: string;
-  subtitle?: string;
-  imageUrl: string;
-  linkUrl?: string;
-  position: string;
-  sortOrder: number;
 }
 
 // ─── Coupon ──────────────────────────────────────────────────
 export interface CouponResponse {
   id: string;
   code: string;
-  description?: string;
-  discountType: "PERCENTAGE" | "FIXED_AMOUNT";
+  discountType: "PERCENT" | "FIXED";
   discountValue: number;
-  minOrderValue?: number;
-  maxDiscount?: number;
   calculatedDiscount: number;
-  expiresAt?: string;
+  description?: string;
+}
+
+// ─── Payment ─────────────────────────────────────────────────
+export interface PaymentUrlResponse {
+  paymentUrl: string;
+}
+
+export interface PaymentResponse {
+  id: string;
+  orderId: string;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  amount: number;
+  transactionId?: string;
+  paidAt?: string;
 }

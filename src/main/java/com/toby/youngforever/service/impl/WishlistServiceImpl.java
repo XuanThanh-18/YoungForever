@@ -35,6 +35,7 @@ public class WishlistServiceImpl implements WishlistService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<ProductSummaryResponse> getWishlist(UUID userId, int page, int size) {
+        // FIX: thêm direction rõ ràng và dùng Sort.Direction enum
         var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "addedAt"));
         var wishlistPage = wishlistRepository.findByUserId(userId, pageable);
 

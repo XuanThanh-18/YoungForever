@@ -18,7 +18,6 @@ public interface ProductRepository extends JpaRepository<Product, UUID>,
     boolean existsBySlug(String slug);
     boolean existsBySku(String sku);
 
-    // ── Standard public queries (respect @SQLRestriction deleted_at IS NULL) ──
     @Query("SELECT p FROM Product p WHERE p.isFeatured = TRUE AND p.isActive = TRUE")
     Page<Product> findFeatured(Pageable pageable);
 
@@ -43,43 +42,42 @@ public interface ProductRepository extends JpaRepository<Product, UUID>,
     @Query("UPDATE Product p SET p.stock = p.stock - :qty WHERE p.id = :id AND p.stock >= :qty")
     int decrementStock(@Param("id") UUID id, @Param("qty") int qty);
 
-    // ── Admin queries – bypass @SQLRestriction with native-style OR nativeQuery=false ──
-    // NOTE: @SQLRestriction applies to the entity filter; to see soft-deleted rows
-    // from admin we use @Query with explicit deletedAt IS NULL filter optional.
     /**
-     * Admin search: includes inactive products, optional filters.
-     * Bypasses @SQLRestriction by using EntityManager directly via @Query
-     * that references the un-filtered entity (works because @SQLRestriction
-     * adds WHERE to derived queries, but explicit JPQL overrides it).
-     *
-     * Actually @SQLRestriction ALWAYS appends; to truly bypass we need a
-     * @NativeQuery or a separate entity. Simplest safe approach:
-     * keep soft-delete filter (deletedAt IS NULL) but allow isActive=false.
+     * FIX BUG 3:
+     * - Bỏ ::text cast không cần thiết (PostgreSQL LOWER() chấp nhận varchar trực tiếp)
+     * - Dùng CAST(:categoryId AS uuid) và CAST(:brandId AS uuid) đúng cách
+     * - Thêm parentheses để AND/OR ưu tiên đúng trong điều kiện keyword
      */
     @Query(value = """
-    SELECT * FROM products p
-    WHERE p.deleted_at IS NULL
-      AND (:keyword IS NULL OR LOWER(p.name::text) LIKE LOWER(CONCAT('%', :keyword, '%'))
-           OR LOWER(p.sku::text) LIKE LOWER(CONCAT('%', :keyword, '%')))
-      AND (CAST(:categoryId AS uuid) IS NULL OR p.category_id = CAST(:categoryId AS uuid))
-      AND (CAST(:brandId AS uuid) IS NULL OR p.brand_id = CAST(:brandId AS uuid))
-      AND (:isActive IS NULL OR p.is_active = :isActive)
-    ORDER BY p.created_at DESC
-    """,
+        SELECT * FROM products p
+        WHERE p.deleted_at IS NULL
+          AND (
+               :keyword IS NULL
+               OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+               OR LOWER(p.sku)  LIKE LOWER(CONCAT('%', :keyword, '%'))
+              )
+          AND (CAST(:categoryId AS uuid) IS NULL OR p.category_id = CAST(:categoryId AS uuid))
+          AND (CAST(:brandId    AS uuid) IS NULL OR p.brand_id    = CAST(:brandId    AS uuid))
+          AND (:isActive IS NULL OR p.is_active = CAST(:isActive AS boolean))
+        ORDER BY p.created_at DESC
+        """,
             countQuery = """
-    SELECT COUNT(*) FROM products p
-    WHERE p.deleted_at IS NULL
-      AND (:keyword IS NULL OR LOWER(p.name::text) LIKE LOWER(CONCAT('%', :keyword, '%'))
-           OR LOWER(p.sku::text) LIKE LOWER(CONCAT('%', :keyword, '%')))
-      AND (CAST(:categoryId AS uuid) IS NULL OR p.category_id = CAST(:categoryId AS uuid))
-      AND (CAST(:brandId AS uuid) IS NULL OR p.brand_id = CAST(:brandId AS uuid))
-      AND (:isActive IS NULL OR p.is_active = :isActive)
-    """,
+        SELECT COUNT(*) FROM products p
+        WHERE p.deleted_at IS NULL
+          AND (
+               :keyword IS NULL
+               OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+               OR LOWER(p.sku)  LIKE LOWER(CONCAT('%', :keyword, '%'))
+              )
+          AND (CAST(:categoryId AS uuid) IS NULL OR p.category_id = CAST(:categoryId AS uuid))
+          AND (CAST(:brandId    AS uuid) IS NULL OR p.brand_id    = CAST(:brandId    AS uuid))
+          AND (:isActive IS NULL OR p.is_active = CAST(:isActive AS boolean))
+        """,
             nativeQuery = true)
     Page<Product> adminSearch(
-            @Param("keyword") String keyword,
-            @Param("categoryId") String categoryId,   // ← đổi UUID → String
-            @Param("brandId") String brandId,          // ← đổi UUID → String
-            @Param("isActive") Boolean isActive,
+            @Param("keyword")    String keyword,
+            @Param("categoryId") String categoryId,
+            @Param("brandId")    String brandId,
+            @Param("isActive")   Boolean isActive,
             Pageable pageable);
 }

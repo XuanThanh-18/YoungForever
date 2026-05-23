@@ -34,9 +34,11 @@ public class ProductController {
 
     @GetMapping("/{slug}")
     @Operation(summary = "Chi tiết sản phẩm theo slug")
-    public ResponseEntity<ApiResponse<ProductResponse>> getProduct(@PathVariable String slug) {
-        return ResponseEntity.ok(ApiResponse.success(productService.getBySlug(slug)));
-    }
+   public ResponseEntity<ApiResponse<ProductResponse>> getProduct(@PathVariable String slug) {
+       ProductResponse resp = productService.getBySlug(slug);
+       productService.recordView(resp.getId());
+       return ResponseEntity.ok(ApiResponse.success(resp));
+   }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")

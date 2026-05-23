@@ -66,8 +66,8 @@ public class AdminServiceImpl implements AdminService {
         LocalDateTime now = LocalDateTime.now();
 
         Map<String, Object> stats = new HashMap<>();
-        stats.put("revenueToday",      orderRepository.sumRevenueBetween(startOfToday, now));
-        stats.put("revenueThisMonth",  orderRepository.sumRevenueBetween(startOfMonth, now));
+        stats.put("revenueToday",      orderRepository.sumRevenueBetween(OrderStatus.DELIVERED, startOfToday, now));
+        stats.put("revenueThisMonth",  orderRepository.sumRevenueBetween(OrderStatus.DELIVERED, startOfMonth, now));
         stats.put("pendingOrders",     orderRepository.countByStatusSince(OrderStatus.PENDING,    startOfToday));
         stats.put("processingOrders",  orderRepository.countByStatusSince(OrderStatus.PROCESSING, startOfMonth));
         stats.put("deliveredToday",    orderRepository.countByStatusSince(OrderStatus.DELIVERED,  startOfToday));
@@ -82,17 +82,10 @@ public class AdminServiceImpl implements AdminService {
     @Override
     public PageResponse<OrderResponse> getAllOrders(
             OrderStatus status, String keyword, int page, int size) {
-        var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        var pageable = PageRequest.of(page, size);
 
-        Page<Order> result;
-        if (keyword != null && !keyword.isBlank()) {
-            // search by orderNumber or customer name
-            result = orderRepository.searchOrders(keyword.trim(), status, pageable);
-        } else if (status != null) {
-            result = orderRepository.findByStatusOrderByCreatedAtDesc(status, pageable);
-        } else {
-            result = orderRepository.findAll(pageable);
-        }
+        String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
+        Page<Order> result = orderRepository.searchOrders(kw, status, pageable);
         return PageResponse.from(result.map(orderMapper::toResponse));
     }
 

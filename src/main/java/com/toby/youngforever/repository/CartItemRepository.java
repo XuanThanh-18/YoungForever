@@ -13,13 +13,34 @@ import java.util.UUID;
 
 @Repository
 public interface CartItemRepository extends JpaRepository<CartItem, UUID> {
+
     List<CartItem> findByUserId(UUID userId);
 
-    @Query("SELECT c FROM CartItem c WHERE c.user.id = :userId AND c.product.id = :productId AND c.variant.id = :variantId")
-    Optional<CartItem> findByUserProductVariant(
+    /**
+     * FIX BUG 2: Tách thành 2 query vì JPQL không xử lý được IS NULL
+     * trên navigation path (c.variant.id = null sẽ throw exception).
+     * CartServiceImpl sẽ gọi method phù hợp tuỳ variantId có null hay không.
+     */
+    @Query("""
+        SELECT c FROM CartItem c
+        WHERE c.user.id = :userId
+          AND c.product.id = :productId
+          AND c.variant.id = :variantId
+        """)
+    Optional<CartItem> findByUserProductAndVariant(
             @Param("userId") UUID userId,
             @Param("productId") UUID productId,
             @Param("variantId") UUID variantId);
+
+    @Query("""
+        SELECT c FROM CartItem c
+        WHERE c.user.id = :userId
+          AND c.product.id = :productId
+          AND c.variant IS NULL
+        """)
+    Optional<CartItem> findByUserProductNoVariant(
+            @Param("userId") UUID userId,
+            @Param("productId") UUID productId);
 
     @Modifying
     @Query("DELETE FROM CartItem c WHERE c.user.id = :userId")

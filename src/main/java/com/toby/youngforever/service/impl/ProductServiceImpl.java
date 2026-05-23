@@ -59,9 +59,14 @@ public class ProductServiceImpl implements ProductService {
     public ProductResponse getBySlug(String slug) {
         Product product = productRepository.findBySlug(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Sản phẩm " + slug));
-        // Increment view count without breaking cache read
-        productRepository.incrementViewCount(product.getId());
         return productMapper.toResponse(product);
+    }
+
+    // Method này được gọi từ Controller, luôn chạy dù cache hit hay miss
+    @Override
+    @Transactional
+    public void recordView(UUID productId) {
+        productRepository.incrementViewCount(productId);
     }
 
     @Override

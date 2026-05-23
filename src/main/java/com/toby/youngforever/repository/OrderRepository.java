@@ -24,13 +24,21 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     @Query("SELECT COUNT(o) FROM Order o WHERE o.status = :status AND o.createdAt >= :since")
     long countByStatusSince(@Param("status") OrderStatus status, @Param("since") LocalDateTime since);
 
-    @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.status = 'DELIVERED' AND o.deliveredAt BETWEEN :from AND :to")
-    BigDecimal sumRevenueBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+    // FIX BUG 1: Thay chuỗi 'DELIVERED' bằng :status enum param
+    @Query("""
+        SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o
+        WHERE o.status = :status
+          AND o.deliveredAt BETWEEN :from AND :to
+        """)
+    BigDecimal sumRevenueBetween(
+            @Param("status") OrderStatus status,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
 
     @Query("SELECT o FROM Order o WHERE o.user.id = :userId AND o.id = :orderId")
     Optional<Order> findByIdAndUserId(@Param("orderId") UUID orderId, @Param("userId") UUID userId);
 
-    // Admin search
+    // Admin search – hỗ trợ kết hợp keyword + status cùng lúc
     @Query("""
         SELECT o FROM Order o
         WHERE (:status IS NULL OR o.status = :status)
@@ -38,6 +46,7 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
                OR LOWER(o.orderNumber) LIKE LOWER(CONCAT('%', :keyword, '%'))
                OR LOWER(o.shipFullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
                OR LOWER(o.shipPhone) LIKE LOWER(CONCAT('%', :keyword, '%')))
+        ORDER BY o.createdAt DESC
         """)
     Page<Order> searchOrders(
             @Param("keyword") String keyword,

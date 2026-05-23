@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -39,26 +40,33 @@ public class CartServiceImpl implements com.toby.youngforever.service.CartServic
         if (!product.getIsActive()) throw new AppException(ErrorCode.PRODUCT_NOT_FOUND);
         if (product.getStock() <= 0) throw new AppException(ErrorCode.OUT_OF_STOCK);
 
-        // Compute effective price
         BigDecimal price = product.getEffectivePrice();
         if (request.getVariantId() != null) {
             price = product.getVariants().stream()
                     .filter(v -> v.getId().equals(request.getVariantId()))
                     .findFirst()
-                    .map(v -> v.getSalePrice() != null ? v.getSalePrice() : v.getPrice() != null ? v.getPrice() : product.getEffectivePrice())
+                    .map(v -> v.getSalePrice() != null ? v.getSalePrice()
+                            : v.getPrice() != null ? v.getPrice()
+                            : product.getEffectivePrice())
                     .orElse(price);
         }
 
         final BigDecimal finalPrice = price;
-        // Upsert: if item exists, increase quantity
-        CartItem item = cartItemRepository
-                .findByUserProductVariant(userId, request.getProductId(), request.getVariantId())
-                .map(existing -> {
-                    int newQty = existing.getQuantity() + request.getQuantity();
+
+        // FIX BUG 2: dùng 2 query riêng biệt, tránh JPQL navigate null
+        Optional<CartItem> existing = request.getVariantId() != null
+                ? cartItemRepository.findByUserProductAndVariant(
+                userId, request.getProductId(), request.getVariantId())
+                : cartItemRepository.findByUserProductNoVariant(
+                userId, request.getProductId());
+
+        CartItem item = existing
+                .map(e -> {
+                    int newQty = e.getQuantity() + request.getQuantity();
                     if (newQty > product.getStock()) throw new AppException(ErrorCode.INSUFFICIENT_STOCK);
-                    existing.setQuantity(newQty);
-                    existing.setUnitPrice(finalPrice);
-                    return existing;
+                    e.setQuantity(newQty);
+                    e.setUnitPrice(finalPrice);
+                    return e;
                 })
                 .orElseGet(() -> CartItem.builder()
                         .user(userRepository.getReferenceById(userId))
