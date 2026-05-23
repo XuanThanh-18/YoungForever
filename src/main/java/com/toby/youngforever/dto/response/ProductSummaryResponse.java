@@ -20,4 +20,5 @@ public class ProductSummaryResponse {
     private Boolean isNewArrival;
     private CategorySummary category;
     private BrandSummary brand;
+    private Boolean isActive;           // ← ADD
 }

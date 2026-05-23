@@ -30,7 +30,7 @@ export interface UserResponse {
   avatarUrl?: string;
   role: "ROLE_USER" | "ROLE_ADMIN" | "ROLE_STAFF";
   isActive: boolean;
-  emailVerified: boolean;
+  emailVerified: boolean; // ← maps to backend isVerified
   createdAt: string;
 }
 
@@ -41,27 +41,18 @@ export interface ProductSummaryResponse {
   slug: string;
   primaryImageUrl?: string;
   images?: ProductImageResponse[];
-
-  // Giá (số – frontend nhận về dạng number sau JSON parse)
   price: number;
   salePrice?: number;
   effectivePrice: number;
-
-  // Flags
+  isActive?: boolean; // ← ADD
   isOnSale?: boolean;
   discountPercent?: number;
   isBestSeller?: boolean;
   isNewArrival?: boolean;
   isFeatured?: boolean;
-
-  // Rating – backend trả về field avgRating (BigDecimal → number)
   avgRating?: number;
   reviewCount?: number;
-
-  // Stock
   stock?: number;
-
-  // Relations
   brand?: BrandSummary;
   category?: CategorySummary;
 }
@@ -103,12 +94,16 @@ export interface CategorySummary {
   slug: string;
 }
 
-export interface BrandResponse extends BrandSummary {
-  bannerUrl?: string;
-  description?: string;
-  country?: string;
-  website?: string;
-  isActive: boolean;
+export interface BrandResponse {
+  id: string;
+  name: string;
+  slug: string;
+  logoUrl?: string;
+  bannerUrl?: string; // ← ADD
+  description?: string; // ← ADD
+  country?: string; // ← ADD
+  website?: string; // ← ADD
+  isActive: boolean; // ← ADD (was missing)
 }
 
 export interface CategoryResponse {
@@ -117,6 +112,9 @@ export interface CategoryResponse {
   slug: string;
   description?: string;
   imageUrl?: string;
+  sortOrder?: number; // ← ADD
+  isActive?: boolean; // ← ADD
+  parent?: CategorySummary; // ← ADD (was missing)
   children?: CategoryResponse[];
 }
 
@@ -182,33 +180,29 @@ export type PaymentStatus =
 
 export interface OrderResponse {
   id: string;
-  userId: string;
-  status: OrderStatus;
-  totalAmount: number;
+  orderNumber?: string; // ← ADD
+  status: string;
+  paymentMethod?: string; // ← ADD
+  shippingName?: string; // ← ADD (was shippingName)
+  shippingPhone?: string; // ← ADD
+  shippingAddress?: string; // ← ADD
+  subtotal: number;
   shippingFee: number;
-  discountAmount: number;
-  paymentMethod: string;
-  paymentStatus: "PENDING" | "PAID" | "FAILED" | "REFUNDED";
-  shippingName: string;
-  shippingPhone: string;
-  shippingAddress: string;
-  adminNote?: string;
-  cancelReason?: string;
-  items: OrderItemResponse[];
+  discountAmount?: number;
+  totalAmount: number;
+  items?: OrderItemResponse[]; // ← ADD
   createdAt: string;
-  confirmedAt?: string;
-  shippedAt?: string;
-  deliveredAt?: string;
+  updatedAt?: string;
 }
 
 export interface OrderItemResponse {
   id: string;
   productId: string;
   productName: string;
-  productImage?: string;
   variantName?: string;
-  quantity: number;
+  imageUrl?: string;
   unitPrice: number;
+  quantity: number;
   totalPrice: number;
 }
 

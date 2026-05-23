@@ -25,7 +25,7 @@ public class BrandServiceImpl implements BrandService {
 
     @Override
     public List<BrandResponse> getAllActive() {
-        return brandRepository.findByIsActiveTrueOrderBySortOrderAsc()
+        return brandRepository.findByIsActiveTrueOrderByName()
                 .stream().map(this::toResponse).toList();
     }
 

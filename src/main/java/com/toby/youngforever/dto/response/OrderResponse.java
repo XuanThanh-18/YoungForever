@@ -1,33 +1,29 @@
 package com.toby.youngforever.dto.response;
 
-import com.toby.youngforever.enums.OrderStatus;
-import com.toby.youngforever.enums.PaymentMethod;
-import lombok.Builder;
-import lombok.Data;
+import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-@Data @Builder
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
 public class OrderResponse {
     private UUID id;
-    private String orderNumber;
-    private OrderStatus status;
-    private PaymentMethod paymentMethod;
+    private String orderNumber;        // ← ensure this field exists
+    private String status;
+    private String paymentMethod;      // ← ensure this field exists
+    private String shippingName;       // ← was shipFullName → rename to shippingName
+    private String shippingPhone;      // ← was shipPhone
+    private String shippingAddress;    // ← was shipAddress
+
     private BigDecimal subtotal;
     private BigDecimal shippingFee;
     private BigDecimal discountAmount;
     private BigDecimal totalAmount;
-    private String couponCode;
-    private String customerNote;
-    private String shipFullName;
-    private String shipPhone;
-    private String shipAddress;
-    private List<OrderItemResponse> items;
+
+    private List<OrderItemResponse> items;  // ← ensure list is included
+
     private LocalDateTime createdAt;
-    private LocalDateTime confirmedAt;
-    private LocalDateTime shippedAt;
+    private LocalDateTime updatedAt;
     private LocalDateTime deliveredAt;
-    private LocalDateTime cancelledAt;
 }

@@ -1,10 +1,9 @@
 package com.toby.youngforever.dto.response;
 
-import lombok.Builder;
-import lombok.Data;
+import lombok.*;
 import java.util.UUID;
 
-@Data @Builder
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
 public class BrandResponse {
     private UUID id;
     private String name;
@@ -14,5 +13,5 @@ public class BrandResponse {
     private String description;
     private String country;
     private String website;
-    private Boolean isActive;
+    private Boolean isActive;           // ← ADD
 }

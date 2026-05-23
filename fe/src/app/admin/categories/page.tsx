@@ -1,31 +1,66 @@
 "use client";
+// fe/src/app/admin/categories/page.tsx  – ENHANCED version
+// Changes vs original:
+//  - Uses /admin/categories (all including inactive)
+//  - isActive toggle
+//  - Pagination
+//  - Search
 
 import { useEffect, useState } from "react";
 import axiosInstance from "@/lib/axios";
-import type { CategoryResponse } from "@/types";
-import { Plus, Pencil, Trash2, X, ChevronRight } from "lucide-react";
+import type { CategoryResponse, PageResponse } from "@/types";
+import {
+  Plus,
+  Search,
+  Pencil,
+  Trash2,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ToggleLeft,
+  ToggleRight,
+} from "lucide-react";
+import toast from "react-hot-toast";
 
 interface CatForm {
   name: string;
   slug: string;
   description: string;
+  imageUrl: string;
   parentId: string;
+  sortOrder: string;
 }
-const EMPTY: CatForm = { name: "", slug: "", description: "", parentId: "" };
+const EMPTY: CatForm = {
+  name: "",
+  slug: "",
+  description: "",
+  imageUrl: "",
+  parentId: "",
+  sortOrder: "0",
+};
 
-function slugify(text: string) {
-  return text
+function slugify(s: string) {
+  return s
     .toLowerCase()
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .replace(/[^a-z0-9\s-]/g, "")
     .trim()
-    .replace(/\s+/g, "-");
+    .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g, "a")
+    .replace(/[èéẹẻẽêềếệểễ]/g, "e")
+    .replace(/[ìíịỉĩ]/g, "i")
+    .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g, "o")
+    .replace(/[ùúụủũưừứựửữ]/g, "u")
+    .replace(/[ỳýỵỷỹ]/g, "y")
+    .replace(/đ/g, "d")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
 }
 
 export default function AdminCategoriesPage() {
-  const [categories, setCategories] = useState<CategoryResponse[]>([]);
+  const [cats, setCats] = useState<CategoryResponse[]>([]);
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
 
   const [showModal, setShowModal] = useState(false);
@@ -34,29 +69,43 @@ export default function AdminCategoriesPage() {
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  // ✅ Fetch inline
+  // Fetch (all including inactive from admin endpoint)
   useEffect(() => {
     let cancelled = false;
 
-    axiosInstance
-      .get<{ data: CategoryResponse[] }>("/categories")
-      .then((res) => {
-        if (!cancelled) setCategories(res.data.data);
-      })
-      .catch(console.error)
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      setLoading(true);
+
+      const params = new URLSearchParams({ page: String(page), size: "15" });
+      if (search) params.set("keyword", search);
+
+      axiosInstance
+        .get<{ data: PageResponse<CategoryResponse> }>(
+          `/admin/categories?${params}`,
+        )
+        .then((res) => {
+          if (cancelled) return;
+          setCats(res.data.data.content);
+          setTotalPages(res.data.data.totalPages);
+        })
+        .catch(console.error)
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [refreshKey]);
+  }, [page, search, refreshKey]);
 
-  const refreshCategories = () => {
+  const refresh = () => {
     setLoading(true);
     setRefreshKey((k) => k + 1);
   };
+  const setField = <K extends keyof CatForm>(k: K, v: CatForm[K]) =>
+    setForm((f) => ({ ...f, [k]: v }));
 
   const openCreate = () => {
     setEditId(null);
@@ -69,24 +118,41 @@ export default function AdminCategoriesPage() {
       name: c.name,
       slug: c.slug,
       description: c.description ?? "",
-      parentId: "",
+      imageUrl: c.imageUrl ?? "",
+      parentId: c.parent?.id ?? "",
+      sortOrder: String(
+        (c as unknown as { sortOrder?: number }).sortOrder ?? 0,
+      ),
     });
     setShowModal(true);
   };
 
   const handleSave = async () => {
+    if (!form.name.trim()) {
+      toast.error("Tên không được trống");
+      return;
+    }
     setSaving(true);
+    const payload = {
+      name: form.name,
+      slug: form.slug || slugify(form.name),
+      description: form.description,
+      imageUrl: form.imageUrl,
+      parentId: form.parentId || null,
+      sortOrder: parseInt(form.sortOrder) || 0,
+    };
     try {
-      const payload = { ...form, parentId: form.parentId || null };
       if (editId) {
-        await axiosInstance.put(`/categories/${editId}`, payload);
+        await axiosInstance.put(`/admin/categories/${editId}`, payload);
+        toast.success("Cập nhật thành công");
       } else {
-        await axiosInstance.post("/categories", payload);
+        await axiosInstance.post("/admin/categories", payload);
+        toast.success("Tạo danh mục thành công");
       }
       setShowModal(false);
-      refreshCategories();
-    } catch (err) {
-      console.error(err);
+      refresh();
+    } catch {
+      toast.error("Có lỗi xảy ra");
     } finally {
       setSaving(false);
     }
@@ -94,31 +160,28 @@ export default function AdminCategoriesPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      await axiosInstance.delete(`/categories/${id}`);
+      await axiosInstance.delete(`/admin/categories/${id}`);
       setDeleteId(null);
-      refreshCategories();
-    } catch (err) {
-      console.error(err);
+      toast.success("Đã xóa danh mục");
+      refresh();
+    } catch {
+      toast.error("Xóa thất bại");
     }
   };
 
-  const setField = (k: keyof CatForm, v: string) => {
-    setForm((f) => {
-      const updated = { ...f, [k]: v };
-      if (k === "name" && !editId) updated.slug = slugify(v);
-      return updated;
-    });
+  const handleToggle = async (id: string) => {
+    try {
+      await axiosInstance.patch(`/admin/categories/${id}/toggle-active`);
+      setCats((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, isActive: !c.isActive } : c)),
+      );
+    } catch {
+      toast.error("Thao tác thất bại");
+    }
   };
 
-  // Flatten tree for table display
-  const flat: Array<CategoryResponse & { depth: number }> = [];
-  const flatten = (items: CategoryResponse[], depth = 0) => {
-    items.forEach((c) => {
-      flat.push({ ...c, depth });
-      if (c.children?.length) flatten(c.children, depth + 1);
-    });
-  };
-  flatten(categories);
+  // Root cats only for parent selector
+  const rootCats = cats.filter((c) => !c.parent);
 
   return (
     <div className="p-8 space-y-6">
@@ -128,7 +191,7 @@ export default function AdminCategoriesPage() {
             Quản lý danh mục
           </h1>
           <p className="text-sm text-stone-500 mt-1">
-            Tạo và chỉnh sửa danh mục sản phẩm
+            Thêm, sửa, xóa danh mục sản phẩm
           </p>
         </div>
         <button
@@ -139,47 +202,75 @@ export default function AdminCategoriesPage() {
         </button>
       </div>
 
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <Search
+          size={14}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
+        />
+        <input
+          type="text"
+          placeholder="Tìm kiếm danh mục..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(0);
+          }}
+          className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:border-[#E8A4B8] bg-white"
+        />
+      </div>
+
+      {/* Table */}
       <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-xs text-stone-400 uppercase tracking-wide bg-stone-50 border-b border-stone-100">
-              <th className="text-left px-6 py-3 font-medium">Tên danh mục</th>
-              <th className="text-left px-6 py-3 font-medium">Slug</th>
-              <th className="text-left px-6 py-3 font-medium">Danh mục con</th>
-              <th className="px-6 py-3 font-medium text-right">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading
-              ? [...Array(5)].map((_, i) => (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-stone-400 uppercase tracking-wide bg-stone-50 border-b border-stone-100">
+                <th className="text-left px-6 py-3 font-medium">
+                  Tên danh mục
+                </th>
+                <th className="text-left px-6 py-3 font-medium">Slug</th>
+                <th className="text-left px-6 py-3 font-medium">
+                  Danh mục cha
+                </th>
+                <th className="text-left px-6 py-3 font-medium">Thứ tự</th>
+                <th className="text-left px-6 py-3 font-medium">Trạng thái</th>
+                <th className="text-right px-6 py-3 font-medium">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i} className="border-b border-stone-50">
-                    {[...Array(4)].map((__, j) => (
+                    {Array.from({ length: 6 }).map((_, j) => (
                       <td key={j} className="px-6 py-4">
                         <div className="h-4 bg-stone-100 rounded animate-pulse" />
                       </td>
                     ))}
                   </tr>
                 ))
-              : flat.map((c) => (
+              ) : cats.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-12 text-stone-400">
+                    Không có danh mục
+                  </td>
+                </tr>
+              ) : (
+                cats.map((c) => (
                   <tr
                     key={c.id}
-                    className="border-b border-stone-50 hover:bg-stone-50/50"
+                    className="border-b border-stone-50 hover:bg-stone-50/50 transition-colors"
                   >
                     <td className="px-6 py-4">
-                      <div
-                        className="flex items-center gap-2"
-                        style={{ paddingLeft: c.depth * 20 }}
-                      >
-                        {c.depth > 0 && (
-                          <ChevronRight size={12} className="text-stone-300" />
+                      <div className="flex items-center gap-2">
+                        {c.imageUrl && (
+                          <img
+                            src={c.imageUrl}
+                            alt={c.name}
+                            className="w-8 h-8 rounded-lg object-cover border border-stone-100"
+                          />
                         )}
-                        <span
-                          className={
-                            c.depth === 0
-                              ? "font-semibold text-stone-800"
-                              : "text-stone-600"
-                          }
-                        >
+                        <span className="font-medium text-stone-800">
                           {c.name}
                         </span>
                       </div>
@@ -187,46 +278,90 @@ export default function AdminCategoriesPage() {
                     <td className="px-6 py-4 font-mono text-xs text-stone-400">
                       {c.slug}
                     </td>
+                    <td className="px-6 py-4 text-stone-500 text-xs">
+                      {c.parent?.name ?? "—"}
+                    </td>
                     <td className="px-6 py-4 text-stone-500">
-                      {c.children?.length ?? 0}
+                      {(c as unknown as { sortOrder?: number }).sortOrder ?? 0}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 justify-end">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                          c.isActive !== false
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-stone-100 text-stone-500"
+                        }`}
+                      >
+                        {c.isActive !== false ? "Hoạt động" : "Đã ẩn"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => handleToggle(c.id)}
+                          className="p-1.5 rounded-lg text-stone-400 hover:bg-stone-100 transition-colors"
+                        >
+                          {c.isActive !== false ? (
+                            <ToggleRight
+                              size={15}
+                              className="text-emerald-600"
+                            />
+                          ) : (
+                            <ToggleLeft size={15} />
+                          )}
+                        </button>
                         <button
                           onClick={() => openEdit(c)}
-                          className="p-1.5 rounded-lg text-stone-500 hover:bg-blue-50 hover:text-blue-600"
+                          className="p-1.5 rounded-lg text-stone-400 hover:bg-stone-100 transition-colors"
                         >
-                          <Pencil size={13} />
+                          <Pencil size={14} />
                         </button>
                         <button
                           onClick={() => setDeleteId(c.id)}
-                          className="p-1.5 rounded-lg text-stone-500 hover:bg-red-50 hover:text-red-600"
+                          className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition-colors"
                         >
-                          <Trash2 size={13} />
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))}
-            {!loading && flat.length === 0 && (
-              <tr>
-                <td
-                  colSpan={4}
-                  className="px-6 py-12 text-center text-stone-400"
-                >
-                  Chưa có danh mục nào
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-stone-100">
+            <p className="text-sm text-stone-500">
+              Trang {page + 1} / {totalPages}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage((p) => p - 1)}
+                disabled={page === 0}
+                className="p-2 rounded-lg border border-stone-200 disabled:opacity-30 hover:bg-stone-50"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <button
+                onClick={() => setPage((p) => p + 1)}
+                disabled={page >= totalPages - 1}
+                className="p-2 rounded-lg border border-stone-200 disabled:opacity-30 hover:bg-stone-50"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
+      {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100">
-              <h2 className="font-bold text-stone-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100 sticky top-0 bg-white">
+              <h2 className="font-semibold text-stone-800">
                 {editId ? "Cập nhật danh mục" : "Thêm danh mục"}
               </h2>
               <button
@@ -243,7 +378,10 @@ export default function AdminCategoriesPage() {
                 </label>
                 <input
                   value={form.name}
-                  onChange={(e) => setField("name", e.target.value)}
+                  onChange={(e) => {
+                    setField("name", e.target.value);
+                    setField("slug", slugify(e.target.value));
+                  }}
                   className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E8A4B8]"
                 />
               </div>
@@ -266,39 +404,72 @@ export default function AdminCategoriesPage() {
                   onChange={(e) => setField("parentId", e.target.value)}
                   className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E8A4B8] bg-white"
                 >
-                  <option value="">— Không có (danh mục gốc) —</option>
-                  {categories.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
+                  <option value="">— Danh mục gốc —</option>
+                  {rootCats
+                    .filter((c) => c.id !== editId)
+                    .map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
                 </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-medium text-stone-500 mb-1 block">
+                    Thứ tự hiển thị
+                  </label>
+                  <input
+                    type="number"
+                    value={form.sortOrder}
+                    onChange={(e) => setField("sortOrder", e.target.value)}
+                    className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E8A4B8]"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-stone-500 mb-1 block">
+                  URL ảnh
+                </label>
+                <input
+                  value={form.imageUrl}
+                  onChange={(e) => setField("imageUrl", e.target.value)}
+                  placeholder="https://..."
+                  className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E8A4B8]"
+                />
+                {form.imageUrl && (
+                  <img
+                    src={form.imageUrl}
+                    alt="preview"
+                    className="mt-2 h-16 object-cover rounded-xl border border-stone-100"
+                  />
+                )}
               </div>
               <div>
                 <label className="text-xs font-medium text-stone-500 mb-1 block">
                   Mô tả
                 </label>
                 <textarea
-                  rows={2}
                   value={form.description}
                   onChange={(e) => setField("description", e.target.value)}
+                  rows={3}
                   className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E8A4B8] resize-none"
                 />
               </div>
             </div>
-            <div className="flex gap-3 px-6 pb-6">
+            <div className="flex justify-end gap-3 px-6 pb-6">
               <button
                 onClick={() => setShowModal(false)}
-                className="flex-1 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-600 hover:bg-stone-50"
+                className="px-4 py-2 rounded-xl border border-stone-200 text-sm text-stone-600 hover:bg-stone-50"
               >
-                Huỷ
+                Hủy
               </button>
               <button
                 onClick={handleSave}
-                disabled={saving || !form.name}
-                className="flex-1 py-2.5 rounded-xl bg-[#1A1614] text-white text-sm font-medium disabled:opacity-50 hover:bg-[#2d2320]"
+                disabled={saving}
+                className="px-5 py-2 rounded-xl bg-[#1A1614] text-white text-sm font-medium hover:bg-[#2d2320] disabled:opacity-50 transition-colors"
               >
-                {saving ? "Đang lưu..." : editId ? "Cập nhật" : "Tạo"}
+                {saving ? "Đang lưu..." : editId ? "Cập nhật" : "Tạo mới"}
               </button>
             </div>
           </div>
@@ -306,22 +477,20 @@ export default function AdminCategoriesPage() {
       )}
 
       {deleteId && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full">
-            <h3 className="font-bold text-stone-800 mb-2">Xóa danh mục?</h3>
-            <p className="text-sm text-stone-500 mb-6">
-              Các sản phẩm trong danh mục này sẽ không bị xóa.
-            </p>
-            <div className="flex gap-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6 space-y-4">
+            <h3 className="font-semibold text-stone-800">Xác nhận xóa?</h3>
+            <p className="text-sm text-stone-500">Danh mục sẽ bị xóa mềm.</p>
+            <div className="flex justify-end gap-3">
               <button
                 onClick={() => setDeleteId(null)}
-                className="flex-1 py-2.5 rounded-xl border border-stone-200 text-sm"
+                className="px-4 py-2 rounded-xl border border-stone-200 text-sm text-stone-600 hover:bg-stone-50"
               >
-                Huỷ
+                Hủy
               </button>
               <button
                 onClick={() => handleDelete(deleteId)}
-                className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium hover:bg-red-600"
+                className="px-4 py-2 rounded-xl bg-red-500 text-white text-sm hover:bg-red-600"
               >
                 Xóa
               </button>

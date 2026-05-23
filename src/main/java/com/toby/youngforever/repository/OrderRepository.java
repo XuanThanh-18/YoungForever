@@ -16,6 +16,7 @@ import java.util.UUID;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, UUID> {
+
     Optional<Order> findByOrderNumber(String orderNumber);
     Page<Order> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
     Page<Order> findByStatusOrderByCreatedAtDesc(OrderStatus status, Pageable pageable);
@@ -28,4 +29,18 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     @Query("SELECT o FROM Order o WHERE o.user.id = :userId AND o.id = :orderId")
     Optional<Order> findByIdAndUserId(@Param("orderId") UUID orderId, @Param("userId") UUID userId);
+
+    // Admin search
+    @Query("""
+        SELECT o FROM Order o
+        WHERE (:status IS NULL OR o.status = :status)
+          AND (:keyword IS NULL
+               OR LOWER(o.orderNumber) LIKE LOWER(CONCAT('%', :keyword, '%'))
+               OR LOWER(o.shipFullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
+               OR LOWER(o.shipPhone) LIKE LOWER(CONCAT('%', :keyword, '%')))
+        """)
+    Page<Order> searchOrders(
+            @Param("keyword") String keyword,
+            @Param("status") OrderStatus status,
+            Pageable pageable);
 }

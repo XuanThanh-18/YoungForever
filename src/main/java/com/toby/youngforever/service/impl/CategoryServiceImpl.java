@@ -104,7 +104,7 @@ public class CategoryServiceImpl implements CategoryService {
                 .isActive(c.getIsActive())
                 .parent(c.getParent() != null ? toSummary(c.getParent()) : null)
                 .children(c.getChildren() != null
-                        ? c.getChildren().stream().map(this::toSummary).toList()
+                        ? c.getChildren().stream().map(this::toResponse).toList()
                         : List.of())
                 .build();
     }

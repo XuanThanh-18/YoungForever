@@ -39,7 +39,8 @@ public class SecurityConfig {
     private static final String[] PUBLIC_GET = {
             "/products/**", "/categories/**", "/brands/**",
             "/blogs/**", "/banners/**", "/reviews/**",
-            "/payments/vnpay/return"
+            "/payments/vnpay/return",
+            "/images/**"
     };
 
     private static final String[] PUBLIC_POST = {
