@@ -73,10 +73,9 @@ export const useAuthStore = create<AuthState>()(
       // Chỉ persist user và auth status; token lấy từ cookie
       partialize: (state) => ({
         user: state.user,
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
         isAdmin: state.isAdmin,
+        // accessToken & refreshToken intentionally excluded – stored in cookies only
       }),
     },
   ),

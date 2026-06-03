@@ -31,10 +31,16 @@ export function useAuth() {
     router.push("/login");
   };
 
-  const logout = () => {
-    storeLogout();
-    toast.success("Đã đăng xuất");
-    router.push("/");
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      // ignore – server error không block logout ở client
+    } finally {
+      storeLogout();
+      toast.success("Đã đăng xuất");
+      router.push("/");
+    }
   };
 
   return { user, isAuthenticated, isAdmin, login, register, logout };

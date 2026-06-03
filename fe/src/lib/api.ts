@@ -10,14 +10,11 @@ import type {
   BrandResponse,
   CategoryResponse,
   CartResponse,
-  CartItemResponse,
   OrderResponse,
   PaymentUrlResponse,
   PaymentResponse,
   ReviewResponse,
-  BannerResponse,
   CouponResponse,
-  NotificationResponse,
   ProductFilterRequest,
 } from "@/types";
 
@@ -38,8 +35,10 @@ export const authApi = {
   resetPassword: (data: { token: string; newPassword: string }) =>
     api.post<ApiResponse<void>>("/auth/reset-password", data),
 
-  verifyEmail: (token: string) =>
-    api.post<ApiResponse<void>>("/auth/verify-email", { token }),
+  verifyEmail: (data: { email: string; otp: string }) =>
+    api.post<ApiResponse<void>>("/auth/verify-email", data),
+
+  logout: () => api.post<ApiResponse<void>>("/auth/logout"),
 };
 
 // ─── User ────────────────────────────────────────────────────

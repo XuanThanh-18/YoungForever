@@ -31,7 +31,7 @@ export interface UserResponse {
   // FIX BUG 9: backend trả về "USER" / "ADMIN" / "STAFF" không có prefix "ROLE_"
   // Spring Security thêm prefix khi build GrantedAuthority, nhưng JSON response
   // từ UserMapper dùng enum.name() → "USER", "ADMIN", "STAFF"
-  role: "USER" | "ADMIN" | "STAFF";
+  role: "ROLE_USER" | "ROLE_ADMIN" | "ROLE_STAFF";
   isActive: boolean;
   emailVerified: boolean;
   createdAt: string;
