@@ -66,10 +66,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET).permitAll()
                         .requestMatchers(HttpMethod.POST, PUBLIC_POST).permitAll()
                         // Admin-only routes
-                        .requestMatchers("/admin/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/products/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/products/**").hasAnyRole("ADMIN", "STAFF")
-                        .requestMatchers(HttpMethod.DELETE, "/products/**").hasRole("ADMIN")
+                        .requestMatchers("/admin/**").hasRole("ROLE_ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/products/**").hasRole("ROLE_ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/products/**").hasAnyRole("ROLE_ADMIN", "ROLE_STAFF")
+                        .requestMatchers(HttpMethod.DELETE, "/products/**").hasRole("ROLE_ADMIN")
                         // Authenticated routes
                         .anyRequest().authenticated()
                 )

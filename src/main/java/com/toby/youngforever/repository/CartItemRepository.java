@@ -45,4 +45,14 @@ public interface CartItemRepository extends JpaRepository<CartItem, UUID> {
     @Modifying
     @Query("DELETE FROM CartItem c WHERE c.user.id = :userId")
     void clearCart(@Param("userId") UUID userId);
+
+    @Query("""
+    SELECT c FROM CartItem c 
+    LEFT JOIN FETCH c.product p 
+    LEFT JOIN FETCH p.images
+    LEFT JOIN FETCH c.variant
+    WHERE c.user.id = :userId
+    ORDER BY c.addedAt DESC
+    """)
+    List<CartItem> findByUserIdWithDetails(@Param("userId") UUID userId);
 }

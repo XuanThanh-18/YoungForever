@@ -3,13 +3,17 @@ package com.toby.youngforever.controller;
 import com.toby.youngforever.dto.request.*;
 import com.toby.youngforever.dto.response.ApiResponse;
 import com.toby.youngforever.dto.response.AuthResponse;
+import com.toby.youngforever.security.UserDetailsImpl;
 import com.toby.youngforever.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -61,12 +65,24 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success(null, "Mật khẩu đã được cập nhật"));
     }
 
+    public record VerifyEmailRequest(
+            @NotBlank(message = "Email không được trống") String email,
+            @NotBlank(message = "OTP không được trống") String otp
+    ) {}
+
     @PostMapping("/verify-email")
-    @Operation(summary = "Xác thực email bằng OTP")
     public ResponseEntity<ApiResponse<Void>> verifyEmail(
-            @RequestParam String email,
-            @RequestParam String otp) {
-        authService.verifyEmail(email, otp);
+            @Valid @RequestBody VerifyEmailRequest request) {
+        authService.verifyEmail(request.email(), request.otp());
         return ResponseEntity.ok(ApiResponse.success(null, "Email đã được xác thực thành công"));
+    }
+
+    @PostMapping("/logout")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Đăng xuất – invalidate refresh token")
+    public ResponseEntity<ApiResponse<Void>> logout(
+            @AuthenticationPrincipal UserDetailsImpl user) {
+        authService.logout(user.getId());
+        return ResponseEntity.ok(ApiResponse.success(null, "Đã đăng xuất"));
     }
 }

@@ -17,4 +17,12 @@ public interface CouponRepository extends JpaRepository<Coupon, UUID> {
     @Modifying
     @Query("UPDATE Coupon c SET c.usedCount = c.usedCount + 1 WHERE c.id = :id")
     void incrementUsedCount(@Param("id") UUID id);
+
+    @Modifying
+    @Query("""
+    UPDATE Coupon c SET c.usedCount = c.usedCount + 1 
+    WHERE c.id = :id 
+    AND (c.usageLimit IS NULL OR c.usedCount < c.usageLimit)
+    """)
+    int incrementUsedCountSafe(@Param("id") UUID id);
 }

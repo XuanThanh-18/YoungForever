@@ -143,7 +143,7 @@ public class OrderServiceImpl implements OrderService {
             couponService.recordUsage(coupon.getId(), userId, saved.getId());
         }
         cartService.clearCart(userId);
-        notificationService.sendOrderPlaced(userId, saved);
+        notificationService.sendOrderPlaced(userId, saved.getOrderNumber(), saved.getId(), saved.getTotalAmount());
 
         log.info("Order placed: {} for user {}", saved.getOrderNumber(), userId);
         return orderMapper.toResponse(saved);
@@ -179,11 +179,13 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(OrderStatus.CANCELLED);
         order.setCancelledAt(LocalDateTime.now());
         order.setCancelReason(reason);
-
+        notificationService.sendOrderStatusUpdate(
+                order.getUser().getId(), order.getOrderNumber(), order.getId(),
+                OrderStatus.CANCELLED, reason);
         // Restore stock
         if (order.getItems() != null) {
             order.getItems().forEach(item ->
-                    productRepository.decrementStock(item.getProduct().getId(), -item.getQuantity()));
+                    productRepository.incrementStock(item.getProduct().getId(), item.getQuantity()));
         }
 
         return orderMapper.toResponse(orderRepository.save(order));
@@ -211,7 +213,9 @@ public class OrderServiceImpl implements OrderService {
             default -> { /* no timestamp */ }
         }
 
-        notificationService.sendOrderStatusUpdate(order.getUser().getId(), order);
+        notificationService.sendOrderStatusUpdate(
+                order.getUser().getId(), order.getOrderNumber(), order.getId(),
+                newStatus, order.getCancelReason());
         return orderMapper.toResponse(orderRepository.save(order));
     }
 

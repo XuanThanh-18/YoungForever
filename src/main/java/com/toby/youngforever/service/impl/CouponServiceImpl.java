@@ -5,6 +5,7 @@ import com.toby.youngforever.dto.response.CouponResponse;
 import com.toby.youngforever.entity.Coupon;
 import com.toby.youngforever.entity.CouponUsage;
 import com.toby.youngforever.entity.Order;
+import com.toby.youngforever.entity.User;
 import com.toby.youngforever.enums.DiscountType;
 import com.toby.youngforever.exception.AppException;
 import com.toby.youngforever.exception.ErrorCode;
@@ -108,14 +109,17 @@ public class CouponServiceImpl implements CouponService {
     }
 
     @Override
+    @Transactional
     public void recordUsage(UUID couponId, UUID userId, UUID orderId) {
-        Coupon coupon = couponRepository.getReferenceById(couponId);
+        int updated = couponRepository.incrementUsedCountSafe(couponId);
+        if (updated == 0) {
+            throw new AppException(ErrorCode.COUPON_USAGE_EXCEEDED);
+        }
         CouponUsage usage = CouponUsage.builder()
-                .coupon(coupon)
+                .coupon(couponRepository.getReferenceById(couponId))
                 .user(userRepository.getReferenceById(userId))
                 .order(orderRepository.getReferenceById(orderId))
                 .build();
         couponUsageRepository.save(usage);
-        couponRepository.incrementUsedCount(couponId);
     }
 }

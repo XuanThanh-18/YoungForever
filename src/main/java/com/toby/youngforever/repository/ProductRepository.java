@@ -15,8 +15,6 @@ public interface ProductRepository extends JpaRepository<Product, UUID>,
         JpaSpecificationExecutor<Product> {
 
     Optional<Product> findBySlug(String slug);
-    boolean existsBySlug(String slug);
-    boolean existsBySku(String sku);
 
     @Query("SELECT p FROM Product p WHERE p.isFeatured = TRUE AND p.isActive = TRUE")
     Page<Product> findFeatured(Pageable pageable);
@@ -80,4 +78,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID>,
             @Param("brandId")    String brandId,
             @Param("isActive")   Boolean isActive,
             Pageable pageable);
+
+    @Modifying
+    @Query("UPDATE Product p SET p.stock = p.stock + :qty WHERE p.id = :id")
+    void incrementStock(@Param("id") UUID id, @Param("qty") int qty);
 }

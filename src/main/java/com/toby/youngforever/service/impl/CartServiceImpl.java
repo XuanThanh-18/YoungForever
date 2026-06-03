@@ -26,9 +26,8 @@ public class CartServiceImpl implements com.toby.youngforever.service.CartServic
     private final UserRepository userRepository;
     private final CartMapper cartMapper;
 
-    @Override
     public CartResponse getCart(UUID userId) {
-        List<CartItem> items = cartItemRepository.findByUserId(userId);
+        List<CartItem> items = cartItemRepository.findByUserIdWithDetails(userId);
         return buildCartResponse(items);
     }
 

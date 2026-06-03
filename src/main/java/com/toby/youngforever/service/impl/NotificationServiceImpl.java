@@ -5,6 +5,7 @@ import com.toby.youngforever.dto.response.PageResponse;
 import com.toby.youngforever.entity.Notification;
 import com.toby.youngforever.entity.Order;
 import com.toby.youngforever.enums.NotificationType;
+import com.toby.youngforever.enums.OrderStatus;
 import com.toby.youngforever.repository.NotificationRepository;
 import com.toby.youngforever.repository.UserRepository;
 import com.toby.youngforever.service.NotificationService;
@@ -14,8 +15,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Slf4j
@@ -29,48 +32,47 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
-    public void sendOrderPlaced(UUID userId, Order order) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendOrderPlaced(UUID userId, String orderNumber, UUID orderId, BigDecimal totalAmount) {
         save(userId,
                 NotificationType.ORDER_PLACED,
                 "Đặt hàng thành công! 🎉",
-                "Đơn hàng " + order.getOrderNumber() + " đã được tiếp nhận. Tổng tiền: "
-                        + formatVnd(order.getTotalAmount()),
-                "/orders/" + order.getId());
+                "Đơn hàng " + orderNumber + " đã được tiếp nhận. Tổng tiền: " + formatVnd(totalAmount),
+                "/orders/" + orderId);
     }
 
     @Async
     @Override
-    public void sendOrderStatusUpdate(UUID userId, Order order) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendOrderStatusUpdate(UUID userId, String orderNumber, UUID orderId, OrderStatus status, String cancelReason) {
         NotificationType type;
         String title;
         String body;
-
-        switch (order.getStatus()) {
+        switch (status) {
             case CONFIRMED -> {
                 type = NotificationType.ORDER_CONFIRMED;
                 title = "Đơn hàng đã được xác nhận ✅";
-                body = "Đơn hàng " + order.getOrderNumber() + " đã được xác nhận và đang chuẩn bị hàng.";
+                body = "Đơn hàng " + orderNumber + " đã được xác nhận và đang chuẩn bị hàng.";
             }
             case SHIPPING -> {
                 type = NotificationType.ORDER_SHIPPING;
                 title = "Đơn hàng đang được giao 🚚";
-                body = "Đơn hàng " + order.getOrderNumber() + " đang trên đường đến bạn.";
+                body = "Đơn hàng " + orderNumber + " đang trên đường đến bạn.";
             }
             case DELIVERED -> {
                 type = NotificationType.ORDER_DELIVERED;
                 title = "Giao hàng thành công 📦";
-                body = "Đơn hàng " + order.getOrderNumber() + " đã được giao. Cảm ơn bạn đã mua sắm!";
+                body = "Đơn hàng " + orderNumber + " đã được giao. Cảm ơn bạn đã mua sắm!";
             }
             case CANCELLED -> {
                 type = NotificationType.ORDER_CANCELLED;
                 title = "Đơn hàng đã bị hủy ❌";
-                body = "Đơn hàng " + order.getOrderNumber() + " đã bị hủy."
-                        + (order.getCancelReason() != null ? " Lý do: " + order.getCancelReason() : "");
+                body = "Đơn hàng " + orderNumber + " đã bị hủy."
+                        + (cancelReason != null ? " Lý do: " + cancelReason : "");
             }
             default -> { return; }
         }
-
-        save(userId, type, title, body, "/orders/" + order.getId());
+        save(userId, type, title, body, "/orders/" + orderId);
     }
 
     @Override

@@ -34,7 +34,7 @@ public class BrandController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<BrandResponse>> createBrand(
             @Valid @RequestBody CreateBrandRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -42,7 +42,7 @@ public class BrandController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<BrandResponse>> updateBrand(
             @PathVariable UUID id,
             @Valid @RequestBody CreateBrandRequest request) {
@@ -50,7 +50,7 @@ public class BrandController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteBrand(@PathVariable UUID id) {
         brandService.softDelete(id);
         return ResponseEntity.ok(ApiResponse.success(null));

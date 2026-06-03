@@ -41,7 +41,7 @@ public class ProductController {
    }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Tạo sản phẩm mới (ADMIN)")
     public ResponseEntity<ApiResponse<ProductResponse>> createProduct(
@@ -51,7 +51,7 @@ public class ProductController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_STAFF')")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Cập nhật sản phẩm (ADMIN / STAFF)")
     public ResponseEntity<ApiResponse<ProductResponse>> updateProduct(
@@ -61,7 +61,7 @@ public class ProductController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Xóa sản phẩm (ADMIN – soft delete)")
     public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable UUID id) {

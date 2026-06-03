@@ -188,4 +188,13 @@ public class AuthServiceImpl implements com.toby.youngforever.service.AuthServic
     public String generateOtp() {
         return String.format("%06d", new Random().nextInt(1_000_000));
     }
+
+    @Override
+    @Transactional
+    public void logout(UUID userId) {
+        userRepository.findById(userId).ifPresent(user -> {
+            user.setRefreshToken(null);
+            userRepository.save(user);
+        });
+    }
 }

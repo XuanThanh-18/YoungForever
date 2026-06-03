@@ -4,6 +4,8 @@ import com.toby.youngforever.dto.request.*;
 import com.toby.youngforever.dto.response.AuthResponse;
 import com.toby.youngforever.entity.User;
 
+import java.util.UUID;
+
 public interface AuthService {
     AuthResponse register(RegisterRequest request);
 
@@ -16,5 +18,7 @@ public interface AuthService {
     void resetPassword(ResetPasswordRequest request);
 
     void verifyEmail(String email, String otpCode);
+
+    void logout(UUID userId);
 
 }
