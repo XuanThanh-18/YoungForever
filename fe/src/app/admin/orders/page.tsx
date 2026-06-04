@@ -1,93 +1,51 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import React from "react";
 import axiosInstance from "@/lib/axios";
-import type { OrderResponse, PageResponse } from "@/types";
+import type { OrderResponse, PageResponse, OrderStatus } from "@/types";
 import {
   Search,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
   Clock,
-  Package,
-  Truck,
   CheckCircle2,
+  Truck,
   XCircle,
+  Package,
   RefreshCw,
+  Circle,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { cn } from "@/lib/utils";
 
-// ── Types ────────────────────────────────────────────────────
-type OrderStatus =
-  | "PENDING"
-  | "CONFIRMED"
-  | "PROCESSING"
-  | "SHIPPING"
-  | "DELIVERED"
-  | "CANCELLED"
-  | "REFUNDED";
-
+// ── Status config ─────────────────────────────────────────────
 const STATUS_CONFIG: Record<
   OrderStatus,
   { label: string; color: string; icon: React.ElementType }
 > = {
-  PENDING: {
-    label: "Chờ xác nhận",
-    color: "bg-amber-100 text-amber-700",
-    icon: Clock,
-  },
-  CONFIRMED: {
-    label: "Đã xác nhận",
-    color: "bg-blue-100 text-blue-700",
-    icon: CheckCircle2,
-  },
-  PROCESSING: {
-    label: "Đang xử lý",
-    color: "bg-indigo-100 text-indigo-700",
-    icon: RefreshCw,
-  },
-  SHIPPING: {
-    label: "Đang giao",
-    color: "bg-purple-100 text-purple-700",
-    icon: Truck,
-  },
-  DELIVERED: {
-    label: "Đã giao",
-    color: "bg-emerald-100 text-emerald-700",
-    icon: CheckCircle2,
-  },
-  CANCELLED: {
-    label: "Đã hủy",
-    color: "bg-red-100 text-red-600",
-    icon: XCircle,
-  },
-  REFUNDED: {
-    label: "Hoàn tiền",
-    color: "bg-stone-100 text-stone-600",
-    icon: RefreshCw,
-  },
+  PENDING:    { label: "Chờ xác nhận", color: "bg-amber-50 text-amber-700",    icon: Clock },
+  CONFIRMED:  { label: "Đã xác nhận",  color: "bg-blue-50 text-blue-700",      icon: CheckCircle2 },
+  PROCESSING: { label: "Đang xử lý",   color: "bg-indigo-50 text-indigo-700",  icon: Package },
+  SHIPPING:   { label: "Đang giao",    color: "bg-cyan-50 text-cyan-700",       icon: Truck },
+  DELIVERED:  { label: "Đã giao",      color: "bg-emerald-50 text-emerald-700", icon: CheckCircle2 },
+  CANCELLED:  { label: "Đã huỷ",       color: "bg-red-50 text-red-700",         icon: XCircle },
+  REFUNDED:   { label: "Hoàn tiền",    color: "bg-stone-50 text-stone-700",     icon: RefreshCw },
 };
 
 const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus[]>> = {
-  PENDING: ["CONFIRMED", "CANCELLED"],
-  CONFIRMED: ["PROCESSING", "CANCELLED"],
+  PENDING:    ["CONFIRMED", "CANCELLED"],
+  CONFIRMED:  ["PROCESSING", "CANCELLED"],
   PROCESSING: ["SHIPPING", "CANCELLED"],
-  SHIPPING: ["DELIVERED"],
-  DELIVERED: ["REFUNDED"],
+  SHIPPING:   ["DELIVERED", "CANCELLED"],
+  DELIVERED:  ["REFUNDED"],
 };
 
 const fmtVND = (n: number) =>
-  new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(
-    n,
-  );
+  new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(n);
 
 const fmtDate = (s: string) =>
-  new Date(s).toLocaleString("vi-VN", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
+  new Date(s).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
 
 // ── Component ────────────────────────────────────────────────
 export default function AdminOrdersPage() {
@@ -95,7 +53,11 @@ export default function AdminOrdersPage() {
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
+
+  // GIẢI THÍCH: loading=true ngay từ đầu — component mount là cần fetch ngay,
+  // không cần setLoading(true) trong effect nữa.
   const [loading, setLoading] = useState(true);
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "">("");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -103,6 +65,14 @@ export default function AdminOrdersPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
+    // CÁCH ĐÚNG: KHÔNG gọi setLoading(true) ở đây.
+    // loading=true đã được set bởi:
+    //   - useState(true) khi lần đầu mount
+    //   - handleSearch/handleStatusChange/refresh() trước khi thay đổi dependency
+    // Chỉ set loading=false trong callback sau khi fetch xong.
+
     const params = new URLSearchParams({ page: String(page), size: "20" });
     if (search.trim()) params.set("keyword", search.trim());
     if (statusFilter) params.set("status", statusFilter);
@@ -110,13 +80,41 @@ export default function AdminOrdersPage() {
     axiosInstance
       .get<{ data: PageResponse<OrderResponse> }>(`/admin/orders?${params}`)
       .then((res) => {
+        if (cancelled) return;
         setOrders(res.data.data.content);
         setTotalPages(res.data.data.totalPages);
         setTotalItems(res.data.data.totalElements);
       })
-      .catch(() => toast.error("Không thể tải danh sách đơn hàng"))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (!cancelled) toast.error("Không thể tải danh sách đơn hàng");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [page, search, statusFilter, refreshKey]);
+
+  // CÁCH ĐÚNG: setLoading(true) được gọi từ event handler (onClick, onChange)
+  // — không phải từ trong effect. Event handler là nơi hợp lệ để gọi setState.
+  const handleSearch = (value: string) => {
+    setLoading(true);
+    setSearch(value);
+    setPage(0);
+  };
+
+  const handleStatusFilter = (value: OrderStatus | "") => {
+    setLoading(true);
+    setStatusFilter(value);
+    setPage(0);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setLoading(true);
+    setPage(newPage);
+  };
 
   const refresh = () => {
     setLoading(true);
@@ -162,22 +160,14 @@ export default function AdminOrdersPage() {
           />
           <input
             value={search}
-            onChange={(e) => {
-              setLoading(true);
-              setSearch(e.target.value);
-              setPage(0);
-            }}
+            onChange={(e) => handleSearch(e.target.value)}
             placeholder="Tìm theo mã đơn, tên, SĐT..."
             className="w-full pl-8 pr-4 py-2 text-sm border border-stone-200 rounded-xl focus:outline-none focus:border-[#E8A4B8]"
           />
         </div>
         <select
           value={statusFilter}
-          onChange={(e) => {
-            setLoading(true);
-            setStatusFilter(e.target.value as OrderStatus | "");
-            setPage(0);
-          }}
+          onChange={(e) => handleStatusFilter(e.target.value as OrderStatus | "")}
           className="px-3 py-2 text-sm border border-stone-200 rounded-xl focus:outline-none focus:border-[#E8A4B8]"
         >
           <option value="">Tất cả trạng thái</option>
@@ -193,6 +183,7 @@ export default function AdminOrdersPage() {
       <div className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-stone-400 text-sm">
+            <div className="w-6 h-6 border-2 border-[#E8A4B8] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
             Đang tải...
           </div>
         ) : orders.length === 0 ? (
@@ -214,128 +205,114 @@ export default function AdminOrdersPage() {
             <tbody>
               {orders.map((order) => {
                 const cfg = STATUS_CONFIG[order.status as OrderStatus];
-                const Icon = cfg?.icon ?? Package;
-                const nextStatuses =
-                  NEXT_STATUS[order.status as OrderStatus] ?? [];
+                const Icon = cfg?.icon ?? Circle;
                 const isExpanded = expandedId === order.id;
+                const nextStatuses = NEXT_STATUS[order.status] ?? [];
 
-                // FIX: thay <> bằng <React.Fragment key={order.id}> để tránh React key warning
-                // Fragment bọc ngoài cần key khi nằm trong .map()
                 return (
-                  <React.Fragment key={order.id}>
+                  <>
                     <tr
-                      className="border-b border-stone-50 hover:bg-stone-50 cursor-pointer"
+                      key={order.id}
+                      className="border-b border-stone-50 hover:bg-stone-50/50 transition-colors cursor-pointer"
                       onClick={() =>
                         setExpandedId(isExpanded ? null : order.id)
                       }
                     >
-                      <td className="px-4 py-3 font-mono text-xs text-stone-600">
-                        {order.orderNumber}
-                      </td>
                       <td className="px-4 py-3">
-                        <div className="font-medium text-stone-800">
-                          {order.shipFullName}
-                        </div>
-                        <div className="text-stone-400 text-xs">
-                          {order.shipPhone}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        {cfg && (
-                          <span
-                            className={cn(
-                              "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium",
-                              cfg.color,
-                            )}
-                          >
-                            <Icon size={11} />
-                            {cfg.label}
+                        <div className="flex items-center gap-1.5">
+                          {isExpanded ? (
+                            <ChevronUp size={13} className="text-stone-400" />
+                          ) : (
+                            <ChevronDown size={13} className="text-stone-400" />
+                          )}
+                          <span className="font-mono text-xs font-semibold text-stone-700">
+                            #{order.orderNumber}
                           </span>
-                        )}
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-right font-medium text-stone-800">
+                      <td className="px-4 py-3">
+                        <p className="text-stone-700">{order.shippingName ?? order.shipFullName ?? "—"}</p>
+<p className="text-xs text-stone-400">{order.shippingPhone ?? order.shipPhone ?? ""}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${cfg?.color ?? "bg-stone-50 text-stone-600"}`}
+                        >
+                          <Icon size={11} />
+                          {cfg?.label ?? order.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-stone-800">
                         {fmtVND(order.totalAmount)}
                       </td>
-                      <td className="px-4 py-3 text-stone-500 text-xs">
+                      <td className="px-4 py-3 text-stone-400 text-xs">
                         {fmtDate(order.createdAt)}
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          {nextStatuses.map((ns) => (
-                            <button
-                              key={ns}
-                              disabled={updatingId === order.id}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleUpdateStatus(order.id, ns);
-                              }}
-                              className="px-2 py-1 text-xs rounded-lg bg-stone-100 hover:bg-[#E8A4B8] hover:text-white transition-colors disabled:opacity-50"
-                            >
-                              → {STATUS_CONFIG[ns]?.label}
-                            </button>
-                          ))}
-                          <ChevronDown
-                            size={14}
-                            className={cn(
-                              "text-stone-400 transition-transform",
-                              isExpanded && "rotate-180",
-                            )}
-                          />
-                        </div>
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        {nextStatuses.length > 0 && (
+                          <select
+                            disabled={updatingId === order.id}
+                            defaultValue=""
+                            onChange={(e) => {
+                              if (e.target.value)
+                                handleUpdateStatus(order.id, e.target.value as OrderStatus);
+                              e.target.value = "";
+                            }}
+                            className="text-xs border border-stone-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#E8A4B8] disabled:opacity-50"
+                          >
+                            <option value="">Cập nhật...</option>
+                            {nextStatuses.map((s) => (
+                              <option key={s} value={s}>
+                                {STATUS_CONFIG[s].label}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </td>
                     </tr>
-
-                    {/* Expanded row: order items */}
                     {isExpanded && (
-                      <tr key={`${order.id}-detail`} className="bg-stone-50">
-                        <td colSpan={6} className="px-4 py-3">
-                          <div className="text-xs text-stone-500 font-medium mb-2">
-                            Chi tiết đơn hàng – {order.items?.length ?? 0} sản
-                            phẩm
-                          </div>
-                          <div className="space-y-1.5">
-                            {order.items?.map((item) => (
+                      <tr key={`${order.id}-detail`} className="bg-stone-50/80">
+                        <td colSpan={6} className="px-6 py-4">
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-stone-500 mb-2">
+                              Sản phẩm trong đơn:
+                            </p>
+                            {order.items.map((item) => (
                               <div
                                 key={item.id}
-                                className="flex items-center gap-3 bg-white rounded-lg p-2.5"
+                                className="flex items-center justify-between text-sm"
                               >
-                                <div className="text-xs text-stone-600 flex-1">
+                                <span className="text-stone-700">
                                   {item.productName}
                                   {item.variantName && (
-                                    <span className="text-stone-400">
-                                      {" "}
-                                      – {item.variantName}
+                                    <span className="text-stone-400 ml-1">
+                                      ({item.variantName})
                                     </span>
                                   )}
-                                </div>
-                                <div className="text-xs text-stone-500">
-                                  x{item.quantity}
-                                </div>
-                                <div className="text-xs font-medium text-stone-700">
-                                  {fmtVND(item.unitPrice * item.quantity)}
-                                </div>
+                                </span>
+                                <span className="text-stone-500">
+                                  x{item.quantity} ·{" "}
+                                  <span className="font-semibold text-stone-800">
+                                    {fmtVND(item.totalPrice)}
+                                  </span>
+                                </span>
                               </div>
                             ))}
-                          </div>
-                          <div className="mt-2 pt-2 border-t border-stone-200 text-xs text-stone-500 space-y-1">
-                            <div>
-                              📍 {order.shipFullName} – {order.shipPhone}
-                            </div>
-                            <div>🏠 {order.shipAddress}</div>
-                            {order.couponCode && (
-                              <div>
-                                🏷️ Mã giảm giá: {order.couponCode} (−
-                                {fmtVND(order.discountAmount)})
-                              </div>
+                            {order.shipAddress && (
+                              <p className="text-xs text-stone-400 pt-2 border-t border-stone-100 mt-2">
+                                📍 {order.shipAddress}
+                              </p>
                             )}
                             {order.customerNote && (
-                              <div>📝 Ghi chú: {order.customerNote}</div>
+                              <p className="text-xs text-stone-400">
+                                📝 {order.customerNote}
+                              </p>
                             )}
                           </div>
                         </td>
                       </tr>
                     )}
-                  </React.Fragment>
+                  </>
                 );
               })}
             </tbody>
@@ -345,32 +322,24 @@ export default function AdminOrdersPage() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 text-sm text-stone-500">
-          <span>
+        <div className="flex items-center justify-center gap-2 mt-5">
+          <button
+            onClick={() => handlePageChange(Math.max(0, page - 1))}
+            disabled={page === 0}
+            className="w-9 h-9 flex items-center justify-center rounded-xl border border-stone-200 text-stone-600 hover:border-rose-300 disabled:opacity-30"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <span className="text-sm text-stone-500">
             Trang {page + 1} / {totalPages}
           </span>
-          <div className="flex gap-2">
-            <button
-              disabled={page === 0}
-              onClick={() => {
-                setLoading(true);
-                setPage((p) => p - 1);
-              }}
-              className="p-2 rounded-xl border border-stone-200 hover:bg-stone-50 disabled:opacity-40"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              disabled={page >= totalPages - 1}
-              onClick={() => {
-                setLoading(true);
-                setPage((p) => p + 1);
-              }}
-              className="p-2 rounded-xl border border-stone-200 hover:bg-stone-50 disabled:opacity-40"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
+          <button
+            onClick={() => handlePageChange(Math.min(totalPages - 1, page + 1))}
+            disabled={page >= totalPages - 1}
+            className="w-9 h-9 flex items-center justify-center rounded-xl border border-stone-200 text-stone-600 hover:border-rose-300 disabled:opacity-30"
+          >
+            <ChevronRight size={16} />
+          </button>
         </div>
       )}
     </div>

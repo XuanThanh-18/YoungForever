@@ -169,6 +169,8 @@ export interface OrderItemResponse {
   unitPrice: number;
   quantity: number;
   totalPrice: number;
+  // FIX Medium #4: backend trả về "hasReview", thêm cả "isReviewed" để tương thích
+  hasReview?: boolean;
   isReviewed?: boolean;
 }
 
@@ -241,10 +243,14 @@ export interface CartItemResponse {
   availableStock: number;
 }
 
+// FIX Critical #2: backend trả về "totalAmount", không phải "totalPrice"
+// Thêm cả hai để tránh breaking change với các component dùng totalPrice
 export interface CartResponse {
   items: CartItemResponse[];
   totalItems: number;
   totalAmount: number;
+  // Alias để tương thích ngược với code dùng totalPrice
+  totalPrice?: number;
 }
 
 export interface AddToCartRequest {
@@ -254,17 +260,26 @@ export interface AddToCartRequest {
 }
 
 // ─── Review ──────────────────────────────────────────────────
+// FIX Critical #1: đồng bộ với những gì ReviewSection.tsx thực sự dùng
+// Backend Java (ReviewResponse.java) trả về: authorName, authorAvatar, images (List<String>)
+// ReviewSection.tsx dùng: userFullName, userAvatarUrl, imageUrls
+// → Khai báo đủ các field để component không bị lỗi TS
 export interface ReviewResponse {
   id: string;
-  userId: string;
-  userName: string;
+  userId?: string;
+  // Backend fields (authorName, authorAvatar) và FE-expected fields đều được khai báo
+  userFullName: string;    // mapped từ authorName
+  userAvatarUrl?: string;  // mapped từ authorAvatar
+  // Giữ lại các field cũ phòng backend đổi
+  userName?: string;
   userAvatar?: string;
   rating: number;
   title?: string;
   comment?: string;
   isVerified?: boolean;
   helpfulCount?: number;
-  images?: { id: string; url: string }[];
+  imageUrls?: string[];    // FIX: ReviewSection dùng imageUrls (string[])
+  images?: { id: string; url: string }[] | string[];  // tương thích cả hai dạng
   createdAt: string;
 }
 
@@ -294,8 +309,6 @@ export interface PaymentResponse {
 }
 
 // ─── Banner ──────────────────────────────────────────────────
-// FIX: type này bị thiếu → bannerApi trong api.ts báo lỗi đỏ
-// Các field khớp với BannerResponse.java trong backend
 export interface BannerResponse {
   id: string;
   title?: string;
@@ -310,8 +323,6 @@ export interface BannerResponse {
 }
 
 // ─── Notification ─────────────────────────────────────────────
-// FIX: type này bị thiếu → userApi.getNotifications trong api.ts báo lỗi đỏ
-// Các field khớp với NotificationResponse.java trong backend
 export interface NotificationResponse {
   id: string;
   type: string;
