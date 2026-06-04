@@ -51,38 +51,33 @@ export default function AdminBrandsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   // Fetch brands
-  useEffect(() => {
-    let cancelled = false;
+  // ✅ THAY bằng:
+useEffect(() => {
+  let cancelled = false;
 
-    Promise.resolve().then(() => {
+  // KHÔNG gọi setLoading(true) ở đây
+  const params = new URLSearchParams({ page: String(page), size: "15" });
+  if (search) params.set("keyword", search);
+
+  axiosInstance
+    .get<{ data: PageResponse<BrandResponse> }>(`/admin/brands?${params}`)
+    .then((res) => {
       if (cancelled) return;
-      setLoading(true);
-
-      const params = new URLSearchParams({ page: String(page), size: "15" });
-      if (search) params.set("keyword", search);
-
-      axiosInstance
-        .get<{ data: PageResponse<BrandResponse> }>(`/admin/brands?${params}`)
-        .then((res) => {
-          if (cancelled) return;
-          setBrands(res.data.data.content);
-          setTotalPages(res.data.data.totalPages);
-        })
-        .catch(console.error)
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
+      setBrands(res.data.data.content);
+      setTotalPages(res.data.data.totalPages);
+    })
+    .catch(console.error)
+    .finally(() => {
+      if (!cancelled) setLoading(false);
     });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [page, search, refreshKey]);
+  return () => { cancelled = true; };
+}, [page, search, refreshKey]);
 
-  const refresh = () => {
-    setLoading(true);
-    setRefreshKey((k) => k + 1);
-  };
+const refresh = () => {
+  setLoading(true);   // ✅ OK — gọi từ event handler, không phải effect body
+  setRefreshKey((k) => k + 1);
+};
   const setField = <K extends keyof BrandForm>(k: K, v: BrandForm[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
@@ -319,14 +314,14 @@ export default function AdminBrandsPage() {
             </p>
             <div className="flex gap-2">
               <button
-                onClick={() => setPage((p) => p - 1)}
+                onClick={() => { setLoading(true); setPage((p) => p - 1); }}
                 disabled={page === 0}
                 className="p-2 rounded-lg border border-stone-200 disabled:opacity-30 hover:bg-stone-50"
               >
                 <ChevronLeft size={14} />
               </button>
               <button
-                onClick={() => setPage((p) => p + 1)}
+                onClick={() => { setLoading(true); setPage((p) => p + 1); }}
                 disabled={page >= totalPages - 1}
                 className="p-2 rounded-lg border border-stone-200 disabled:opacity-30 hover:bg-stone-50"
               >

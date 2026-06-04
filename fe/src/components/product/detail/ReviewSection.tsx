@@ -12,6 +12,7 @@ interface Props {
   avgRating: number;
   reviewCount: number;
 }
+
 const ratingPercent: Record<number, number> = {
   5: 80,
   4: 60,
@@ -19,6 +20,7 @@ const ratingPercent: Record<number, number> = {
   2: 10,
   1: 5,
 };
+
 function StarDisplay({ rating, size = 14 }: { rating: number; size?: number }) {
   return (
     <div className="flex items-center gap-0.5">
@@ -37,10 +39,33 @@ function StarDisplay({ rating, size = 14 }: { rating: number; size?: number }) {
   );
 }
 
-function ReviewCard({ review }: { review: ReviewResponse }) {
-  const initials = review.userFullName
+// FIX Critical #1: normalize helper để tương thích cả hai dạng response từ backend
+// Backend có thể trả về authorName/authorAvatar HOẶC userFullName/userAvatarUrl
+function normalizeReview(r: ReviewResponse & Record<string, unknown>): ReviewResponse {
+  return {
+    ...r,
+    // Ưu tiên userFullName, fallback sang authorName (backend field), rồi userName
+    userFullName: r.userFullName || (r["authorName"] as string) || r.userName || "Ẩn danh",
+    // Ưu tiên userAvatarUrl, fallback sang authorAvatar, rồi userAvatar
+    userAvatarUrl: r.userAvatarUrl || (r["authorAvatar"] as string) || r.userAvatar,
+    // Chuẩn hoá imageUrls: backend trả về images (List<String>) hoặc imageUrls
+    imageUrls: r.imageUrls
+      || (Array.isArray(r.images)
+        ? (r.images as Array<string | { url: string }>).map((img) =>
+            typeof img === "string" ? img : img.url
+          )
+        : []),
+  };
+}
+
+function ReviewCard({ review: rawReview }: { review: ReviewResponse }) {
+  // FIX: normalize trước khi dùng để tránh undefined
+  const review = normalizeReview(rawReview as ReviewResponse & Record<string, unknown>);
+
+  const displayName = review.userFullName || "Ẩn danh";
+  const initials = displayName
     .split(" ")
-    .map((n) => n[0])
+    .map((n: string) => n[0])
     .slice(-2)
     .join("")
     .toUpperCase();
@@ -59,7 +84,7 @@ function ReviewCard({ review }: { review: ReviewResponse }) {
           {review.userAvatarUrl ? (
             <img
               src={review.userAvatarUrl}
-              alt={review.userFullName}
+              alt={displayName}
               className="w-10 h-10 rounded-full object-cover"
             />
           ) : (
@@ -76,7 +101,7 @@ function ReviewCard({ review }: { review: ReviewResponse }) {
           <div className="flex items-center justify-between gap-2 mb-1">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-semibold text-stone-800">
-                {review.userFullName}
+                {displayName}
               </span>
               {review.isVerified && (
                 <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
@@ -114,7 +139,7 @@ function ReviewCard({ review }: { review: ReviewResponse }) {
                 <img
                   key={i}
                   src={url}
-                  alt={`Review image ${i + 1}`}
+                  alt={`Ảnh đánh giá ${i + 1}`}
                   className="w-16 h-16 rounded-lg object-cover border border-stone-100"
                 />
               ))}
@@ -150,115 +175,90 @@ export default function ReviewSection({
   const reviews = data?.content ?? [];
   const totalPages = data?.totalPages ?? 0;
 
-  // Rating breakdown (5 → 1)
-  const ratingBars = [5, 4, 3, 2, 1];
-
   return (
     <div>
       {/* Summary */}
-      {reviewCount > 0 && (
-        <div className="flex items-center gap-8 mb-8 p-6 bg-stone-50 rounded-2xl">
-          {/* Overall score */}
-          <div className="text-center flex-shrink-0">
-            <p className="text-5xl font-bold text-stone-900">
-              {avgRating.toFixed(1)}
-            </p>
-            <StarDisplay rating={avgRating} size={16} />
-            <p className="text-xs text-stone-400 mt-1">
-              {reviewCount} đánh giá
-            </p>
-          </div>
-
-          {/* Bar chart */}
-          <div className="flex-1 space-y-1.5">
-            {ratingBars.map((star) => (
-              <div key={star} className="flex items-center gap-2">
-                <span className="text-xs text-stone-500 w-3 flex-shrink-0">
-                  {star}
-                </span>
-                <Star
-                  size={10}
-                  className="text-amber-400 fill-amber-400 flex-shrink-0"
-                />
-                <div className="flex-1 bg-stone-200 rounded-full h-1.5 overflow-hidden">
-                  {/* In a real app, pass rating distribution from API */}
-                  <div
-                    className="h-full bg-amber-400 rounded-full"
-                    style={{
-                      width: `${ratingPercent[star]}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+      <div className="flex flex-col sm:flex-row gap-6 mb-8">
+        {/* Overall */}
+        <div className="flex flex-col items-center justify-center bg-rose-50 rounded-2xl p-6 min-w-[140px]">
+          <p className="text-5xl font-bold text-stone-800">
+            {avgRating.toFixed(1)}
+          </p>
+          <StarDisplay rating={avgRating} size={16} />
+          <p className="text-xs text-stone-400 mt-2">{reviewCount} đánh giá</p>
         </div>
-      )}
+
+        {/* Breakdown */}
+        <div className="flex-1 space-y-2">
+          {[5, 4, 3, 2, 1].map((star) => (
+            <div key={star} className="flex items-center gap-3">
+              <span className="text-xs text-stone-500 w-4">{star}</span>
+              <Star size={11} className="text-amber-400 fill-amber-400" />
+              <div className="flex-1 h-2 bg-stone-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-amber-400 rounded-full transition-all"
+                  style={{ width: `${ratingPercent[star] ?? 0}%` }}
+                />
+              </div>
+              <span className="text-xs text-stone-400 w-8 text-right">
+                {ratingPercent[star] ?? 0}%
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Reviews list */}
       {isLoading ? (
         <div className="space-y-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div
-              key={i}
-              className="animate-pulse py-6 border-b border-stone-100"
-            >
-              <div className="flex gap-4">
-                <div className="w-10 h-10 rounded-full bg-stone-100" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-3 bg-stone-100 rounded w-1/4" />
-                  <div className="h-3 bg-stone-100 rounded w-full" />
-                  <div className="h-3 bg-stone-100 rounded w-3/4" />
-                </div>
-              </div>
-            </div>
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-24 bg-stone-100 rounded-xl animate-pulse" />
           ))}
         </div>
       ) : reviews.length === 0 ? (
         <div className="text-center py-12 text-stone-400">
-          <Star
-            size={40}
-            strokeWidth={1}
-            className="mx-auto mb-3 text-stone-200"
-          />
-          <p className="text-sm font-medium text-stone-500">
-            Chưa có đánh giá nào
-          </p>
-          <p className="text-xs mt-1">
-            Hãy là người đầu tiên đánh giá sản phẩm này!
-          </p>
+          <Star size={32} strokeWidth={1} className="mx-auto mb-3" />
+          <p className="text-sm">Chưa có đánh giá nào</p>
         </div>
       ) : (
-        <>
-          <div>
-            {reviews.map((review) => (
-              <ReviewCard key={review.id} review={review} />
-            ))}
-          </div>
+        <div>
+          {reviews.map((review) => (
+            <ReviewCard key={review.id} review={review} />
+          ))}
+        </div>
+      )}
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-6">
-              <button
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
-                className="px-4 py-2 text-sm border border-stone-200 rounded-xl hover:border-rose-300 hover:text-rose-600 disabled:opacity-40 transition-colors"
-              >
-                Trước
-              </button>
-              <span className="text-sm text-stone-500">
-                {page + 1} / {totalPages}
-              </span>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                disabled={page >= totalPages - 1}
-                className="px-4 py-2 text-sm border border-stone-200 rounded-xl hover:border-rose-300 hover:text-rose-600 disabled:opacity-40 transition-colors"
-              >
-                Sau
-              </button>
-            </div>
-          )}
-        </>
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-6">
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className={cn(
+              "px-4 py-2 text-sm rounded-xl border transition-colors",
+              page === 0
+                ? "border-stone-100 text-stone-300 cursor-not-allowed"
+                : "border-stone-200 text-stone-600 hover:border-rose-300 hover:text-rose-600",
+            )}
+          >
+            Trước
+          </button>
+          <span className="text-sm text-stone-500">
+            {page + 1} / {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page >= totalPages - 1}
+            className={cn(
+              "px-4 py-2 text-sm rounded-xl border transition-colors",
+              page >= totalPages - 1
+                ? "border-stone-100 text-stone-300 cursor-not-allowed"
+                : "border-stone-200 text-stone-600 hover:border-rose-300 hover:text-rose-600",
+            )}
+          >
+            Tiếp
+          </button>
+        </div>
       )}
     </div>
   );

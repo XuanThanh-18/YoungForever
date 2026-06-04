@@ -1,26 +1,24 @@
-// ═══════════════════════════════════════════════════════════════════
-// FILE: fe/src/lib/axios.ts
-// ═══════════════════════════════════════════════════════════════════
 import axios from "axios";
 import Cookies from "js-cookie";
 import { useAuthStore } from "@/store/authStore";
 
+const BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api/v1";
+
 const api = axios.create({
-  // FIX: fallback đổi từ "http://localhost:8080/api" → "http://localhost:8080/api/v1"
-  // Backend dùng context-path: /api/v1 (xem application.yml: server.servlet.context-path)
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api/v1",
+  baseURL: BASE_URL,
   timeout: 15_000,
   headers: { "Content-Type": "application/json" },
 });
 
-// ── Request interceptor: đính token vào mọi request ──────────────
+// ── Request interceptor ───────────────────────────────────────
 api.interceptors.request.use((config) => {
   const token = Cookies.get("access_token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// ── Response interceptor: auto refresh khi 401 ───────────────────
+// ── Response interceptor: auto refresh khi 401 ───────────────
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (value: string) => void;
@@ -34,6 +32,11 @@ const processQueue = (error: unknown, token: string | null) => {
   });
   failedQueue = [];
 };
+
+// Khớp với authStore: access token 15 phút
+const ACCESS_TOKEN_EXPIRE_DAYS = 900_000 / (1000 * 60 * 60 * 24);
+const COOKIE_SECURE   = process.env.NODE_ENV === "production";
+const COOKIE_SAME_SITE = "strict" as const;
 
 api.interceptors.response.use(
   (res) => res,
@@ -61,27 +64,40 @@ api.interceptors.response.use(
       }
 
       try {
-        const { data } = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api/v1"}/auth/refresh`,
-          { refreshToken },
-        );
-        const newAccess: string = data.data.accessToken;
-        const newRefresh: string = data.data.refreshToken;
+        // Dùng axios thô để tránh interceptor vòng lặp
+        // Backend trả: { success, data: { accessToken, refreshToken, user } }
+        const axiosResponse = await axios.post(`${BASE_URL}/auth/refresh`, {
+          refreshToken,
+        });
 
+        // FIX: parse đúng tầng - axiosResponse.data = body JSON (ApiResponse)
+        // axiosResponse.data.data = AuthResponse
+        const authData = axiosResponse.data?.data;
+        const newAccess: string  = authData?.accessToken;
+        const newRefresh: string = authData?.refreshToken;
+        const user = authData?.user;
+
+        if (!newAccess || !newRefresh) {
+          throw new Error("Invalid refresh response");
+        }
+
+        // Lưu cookie với thời gian đúng (không export, xử lý nội bộ)
         Cookies.set("access_token", newAccess, {
-          expires: 1,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "strict",
+          expires: ACCESS_TOKEN_EXPIRE_DAYS,
+          secure: COOKIE_SECURE,
+          sameSite: COOKIE_SAME_SITE,
         });
         Cookies.set("refresh_token", newRefresh, {
           expires: 7,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "strict",
+          secure: COOKIE_SECURE,
+          sameSite: COOKIE_SAME_SITE,
         });
 
-        useAuthStore
-          .getState()
-          .setAuth(useAuthStore.getState().user!, newAccess, newRefresh);
+        // Cập nhật store - dùng user từ response hoặc fallback store
+        const currentUser = user ?? useAuthStore.getState().user;
+        if (currentUser) {
+          useAuthStore.getState().setAuth(currentUser, newAccess, newRefresh);
+        }
 
         processQueue(null, newAccess);
         original.headers.Authorization = `Bearer ${newAccess}`;
@@ -89,6 +105,12 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         useAuthStore.getState().logout();
+        if (
+          typeof window !== "undefined" &&
+          window.location.pathname.startsWith("/admin")
+        ) {
+          window.location.href = "/login";
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

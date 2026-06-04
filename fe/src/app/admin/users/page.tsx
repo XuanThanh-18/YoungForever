@@ -1,10 +1,4 @@
 "use client";
-// fe/src/app/admin/users/page.tsx  – ENHANCED version
-// Changes vs original:
-//  - Search by name/email/phone
-//  - Filter by role
-//  - Change role action (dropdown)
-//  - Shows isVerified badge correctly (field is emailVerified in types)
 
 import { useEffect, useState } from "react";
 import axiosInstance from "@/lib/axios";
@@ -21,68 +15,78 @@ import toast from "react-hot-toast";
 
 type UserRole = "ROLE_USER" | "ROLE_ADMIN" | "ROLE_STAFF";
 
-const ROLE_LABELS: Record<UserRole, string> = {
-  ROLE_USER: "Khách hàng",
-  ROLE_ADMIN: "Admin",
-  ROLE_STAFF: "Nhân viên",
-};
-
 const ROLE_COLORS: Record<UserRole, string> = {
-  ROLE_USER: "bg-stone-100 text-stone-600",
+  ROLE_USER:  "bg-stone-100 text-stone-600",
   ROLE_ADMIN: "bg-rose-100 text-rose-700",
   ROLE_STAFF: "bg-blue-100 text-blue-700",
 };
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<UserResponse[]>([]);
-  const [page, setPage] = useState(0);
+  const [users, setUsers]           = useState<UserResponse[]>([]);
+  const [page, setPage]             = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  // loading=true từ đầu, không cần setLoading(true) trong effect
+  const [loading, setLoading]       = useState(true);
+  const [search, setSearch]         = useState("");
   const [roleFilter, setRoleFilter] = useState<UserRole | "">("");
-  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId]       = useState<string | null>(null);
   const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
 
-    Promise.resolve().then(() => {
-      if (cancelled) return;
-      setLoading(true);
+    // KHÔNG gọi setLoading(true) ở đây — đã xử lý từ event handler hoặc useState(true)
+    const params = new URLSearchParams({ page: String(page), size: "15" });
+    if (search)     params.set("keyword", search);
+    if (roleFilter) params.set("role", roleFilter);
 
-      const params = new URLSearchParams({ page: String(page), size: "15" });
-      if (search) params.set("keyword", search);
-      if (roleFilter) params.set("role", roleFilter);
+    axiosInstance
+      .get<{ data: PageResponse<UserResponse> }>(`/admin/users?${params}`)
+      .then((res) => {
+        if (cancelled) return;
+        setUsers(res.data.data.content);
+        setTotalPages(res.data.data.totalPages);
+        setTotalItems(res.data.data.totalElements);
+      })
+      .catch(console.error)
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-      axiosInstance
-        .get<{ data: PageResponse<UserResponse> }>(`/admin/users?${params}`)
-        .then((res) => {
-          if (cancelled) return;
-          setUsers(res.data.data.content);
-          setTotalPages(res.data.data.totalPages);
-          setTotalItems(res.data.data.totalElements);
-        })
-        .catch(console.error)
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
-    });
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [page, search, roleFilter, refreshKey]);
+
+  // setLoading(true) gọi từ event handler — đúng cách
+  const handleSearch = (value: string) => {
+    setLoading(true);
+    setSearch(value);
+    setPage(0);
+  };
+
+  const handleRoleFilter = (value: UserRole | "") => {
+    setLoading(true);
+    setRoleFilter(value);
+    setPage(0);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setLoading(true);
+    setPage(newPage);
+  };
+
+  const refresh = () => {
+    setLoading(true);
+    setRefreshKey((k) => k + 1);
+  };
 
   const handleToggle = async (userId: string) => {
     setTogglingId(userId);
     try {
       await axiosInstance.put(`/admin/users/${userId}/toggle-active`);
       setUsers((prev) =>
-        prev.map((u) =>
-          u.id === userId ? { ...u, isActive: !u.isActive } : u,
-        ),
+        prev.map((u) => (u.id === userId ? { ...u, isActive: !u.isActive } : u)),
       );
       toast.success("Đã cập nhật trạng thái");
     } catch {
@@ -92,10 +96,14 @@ export default function AdminUsersPage() {
     }
   };
 
+  // High #3 đã xác nhận: backend dùng @PatchMapping("/users/{id}/role") → .patch() là đúng
+  // Truyền role qua query param đúng với @RequestParam UserRole role của backend
   const handleChangeRole = async (userId: string, role: UserRole) => {
     setChangingRoleId(userId);
     try {
-      await axiosInstance.patch(`/admin/users/${userId}/role?role=${role}`);
+      await axiosInstance.patch(`/admin/users/${userId}/role`, null, {
+        params: { role },
+      });
       setUsers((prev) =>
         prev.map((u) => (u.id === userId ? { ...u, role } : u)),
       );
@@ -110,9 +118,7 @@ export default function AdminUsersPage() {
   return (
     <div className="p-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-stone-800">
-          Quản lý khách hàng
-        </h1>
+        <h1 className="text-2xl font-bold text-stone-800">Quản lý khách hàng</h1>
         <p className="text-sm text-stone-500 mt-1">
           {totalItems.toLocaleString("vi-VN")} tài khoản
         </p>
@@ -129,19 +135,13 @@ export default function AdminUsersPage() {
             type="text"
             placeholder="Tên, email, SĐT..."
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(0);
-            }}
+            onChange={(e) => handleSearch(e.target.value)}
             className="pl-9 pr-4 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:border-[#E8A4B8] bg-white w-64"
           />
         </div>
         <select
           value={roleFilter}
-          onChange={(e) => {
-            setRoleFilter(e.target.value as UserRole | "");
-            setPage(0);
-          }}
+          onChange={(e) => handleRoleFilter(e.target.value as UserRole | "")}
           className="px-4 py-2.5 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:border-[#E8A4B8]"
         >
           <option value="">Tất cả role</option>
@@ -180,10 +180,7 @@ export default function AdminUsersPage() {
                 ))
               ) : users.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={8}
-                    className="text-center py-12 text-stone-400 text-sm"
-                  >
+                  <td colSpan={8} className="text-center py-12 text-stone-400 text-sm">
                     Không có tài khoản nào
                   </td>
                 </tr>
@@ -206,30 +203,24 @@ export default function AdminUsersPage() {
                             {u.fullName?.charAt(0).toUpperCase()}
                           </div>
                         )}
-                        <span className="font-medium text-stone-800">
-                          {u.fullName}
-                        </span>
+                        <span className="font-medium text-stone-800">{u.fullName}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-stone-500">{u.email}</td>
-                    <td className="px-6 py-4 text-stone-500">
-                      {u.phone || "—"}
-                    </td>
 
-                    {/* Role – dropdown to change */}
+                    <td className="px-6 py-4 text-stone-500">{u.email}</td>
+                    <td className="px-6 py-4 text-stone-500">{u.phone || "—"}</td>
+
+                    {/* Role dropdown */}
                     <td className="px-6 py-4">
                       <div className="relative inline-block">
                         <select
                           value={u.role}
-                          disabled={
-                            changingRoleId === u.id || u.role === "ROLE_ADMIN"
-                          }
+                          disabled={changingRoleId === u.id || u.role === "ROLE_ADMIN"}
                           onChange={(e) =>
                             handleChangeRole(u.id, e.target.value as UserRole)
                           }
                           className={`text-xs px-2.5 py-1 rounded-full font-medium appearance-none cursor-pointer pr-6 disabled:opacity-60 disabled:cursor-not-allowed ${
-                            ROLE_COLORS[u.role as UserRole] ??
-                            "bg-stone-100 text-stone-600"
+                            ROLE_COLORS[u.role as UserRole] ?? "bg-stone-100 text-stone-600"
                           }`}
                         >
                           <option value="ROLE_USER">Khách hàng</option>
@@ -275,15 +266,11 @@ export default function AdminUsersPage() {
                       <div className="flex items-center justify-end">
                         <button
                           onClick={() => handleToggle(u.id)}
-                          disabled={
-                            togglingId === u.id || u.role === "ROLE_ADMIN"
-                          }
+                          disabled={togglingId === u.id || u.role === "ROLE_ADMIN"}
                           title={
                             u.role === "ROLE_ADMIN"
                               ? "Không thể khóa Admin"
-                              : u.isActive
-                                ? "Khóa tài khoản"
-                                : "Mở khóa"
+                              : u.isActive ? "Khóa tài khoản" : "Mở khóa"
                           }
                           className={`p-1.5 rounded-lg transition-colors disabled:opacity-30 ${
                             u.isActive
@@ -292,9 +279,9 @@ export default function AdminUsersPage() {
                           }`}
                         >
                           {u.isActive ? (
-                            <ShieldOff size={15} />
+                            <ShieldOff size={16} />
                           ) : (
-                            <ShieldCheck size={15} />
+                            <ShieldCheck size={16} />
                           )}
                         </button>
                       </div>
@@ -305,31 +292,30 @@ export default function AdminUsersPage() {
             </tbody>
           </table>
         </div>
-
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-stone-100">
-            <p className="text-sm text-stone-500">
-              Trang {page + 1} / {totalPages}
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage((p) => p - 1)}
-                disabled={page === 0}
-                className="p-2 rounded-lg border border-stone-200 disabled:opacity-30 hover:bg-stone-50"
-              >
-                <ChevronLeft size={14} />
-              </button>
-              <button
-                onClick={() => setPage((p) => p + 1)}
-                disabled={page >= totalPages - 1}
-                className="p-2 rounded-lg border border-stone-200 disabled:opacity-30 hover:bg-stone-50"
-              >
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          <button
+            onClick={() => handlePageChange(Math.max(0, page - 1))}
+            disabled={page === 0}
+            className="w-9 h-9 flex items-center justify-center rounded-xl border border-stone-200 text-stone-600 hover:border-rose-300 disabled:opacity-30"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <span className="text-sm text-stone-500">
+            {page + 1} / {totalPages}
+          </span>
+          <button
+            onClick={() => handlePageChange(Math.min(totalPages - 1, page + 1))}
+            disabled={page >= totalPages - 1}
+            className="w-9 h-9 flex items-center justify-center rounded-xl border border-stone-200 text-stone-600 hover:border-rose-300 disabled:opacity-30"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

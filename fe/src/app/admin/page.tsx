@@ -26,28 +26,30 @@ interface DashboardStats {
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  PENDING: "Chờ xác nhận",
-  CONFIRMED: "Đã xác nhận",
+  PENDING:    "Chờ xác nhận",
+  CONFIRMED:  "Đã xác nhận",
   PROCESSING: "Đang xử lý",
-  SHIPPING: "Đang giao",
-  DELIVERED: "Đã giao",
-  CANCELLED: "Đã huỷ",
-  RETURNED: "Hoàn hàng",
+  SHIPPING:   "Đang giao",
+  DELIVERED:  "Đã giao",
+  CANCELLED:  "Đã huỷ",
+  REFUNDED:   "Hoàn tiền",
 };
+
 const STATUS_COLOR: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-700",
-  CONFIRMED: "bg-blue-100 text-blue-700",
+  PENDING:    "bg-amber-100 text-amber-700",
+  CONFIRMED:  "bg-blue-100 text-blue-700",
   PROCESSING: "bg-purple-100 text-purple-700",
-  SHIPPING: "bg-cyan-100 text-cyan-700",
-  DELIVERED: "bg-emerald-100 text-emerald-700",
-  CANCELLED: "bg-red-100 text-red-700",
-  RETURNED: "bg-orange-100 text-orange-700",
+  SHIPPING:   "bg-cyan-100 text-cyan-700",
+  DELIVERED:  "bg-emerald-100 text-emerald-700",
+  CANCELLED:  "bg-red-100 text-red-700",
+  REFUNDED:   "bg-stone-100 text-stone-700",
 };
 
 function fmt(v: number) {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
     currency: "VND",
+    maximumFractionDigits: 0,
   }).format(v ?? 0);
 }
 
@@ -80,11 +82,10 @@ function StatCard({
 }
 
 export default function AdminDashboardPage() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [stats, setStats]               = useState<DashboardStats | null>(null);
   const [recentOrders, setRecentOrders] = useState<OrderResponse[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]           = useState(true);
 
-  // ✅ Fetch inline — không dùng useCallback với setState
   useEffect(() => {
     let cancelled = false;
 
@@ -104,9 +105,7 @@ export default function AdminDashboardPage() {
         if (!cancelled) setLoading(false);
       });
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   if (loading) {
@@ -117,6 +116,7 @@ export default function AdminDashboardPage() {
             <div key={i} className="bg-white rounded-2xl h-32 animate-pulse" />
           ))}
         </div>
+        <div className="bg-white rounded-2xl h-64 animate-pulse" />
       </div>
     );
   }
@@ -156,9 +156,7 @@ export default function AdminDashboardPage() {
     <div className="p-8 space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-stone-800">Dashboard</h1>
-        <p className="text-sm text-stone-500 mt-1">
-          Tổng quan hoạt động hôm nay
-        </p>
+        <p className="text-sm text-stone-500 mt-1">Tổng quan hoạt động hôm nay</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -186,7 +184,6 @@ export default function AdminDashboardPage() {
                 <th className="text-left px-6 py-3 font-medium">Tổng tiền</th>
                 <th className="text-left px-6 py-3 font-medium">Trạng thái</th>
                 <th className="text-left px-6 py-3 font-medium">Thời gian</th>
-                <th className="px-6 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -196,40 +193,32 @@ export default function AdminDashboardPage() {
                   className="border-b border-stone-50 hover:bg-stone-50/50 transition-colors"
                 >
                   <td className="px-6 py-3.5 font-mono text-xs text-stone-500">
-                    #{order.id.slice(0, 8).toUpperCase()}
+                    #{order.orderNumber ?? order.id.slice(0, 8).toUpperCase()}
                   </td>
                   <td className="px-6 py-3.5 font-medium text-stone-700">
-                    {order.shippingName ?? "—"}
+                    {/* FIX Bug #3: dùng shippingName (backend mới) với fallback shipFullName (backend cũ) */}
+                    {order.shippingName ?? order.shipFullName ?? "—"}
                   </td>
                   <td className="px-6 py-3.5 font-semibold text-stone-800">
                     {fmt(order.totalAmount)}
                   </td>
                   <td className="px-6 py-3.5">
                     <span
-                      className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_COLOR[order.status] ?? "bg-stone-100 text-stone-600"}`}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                        STATUS_COLOR[order.status] ?? "bg-stone-100 text-stone-600"
+                      }`}
                     >
                       {STATUS_LABEL[order.status] ?? order.status}
                     </span>
                   </td>
-                  <td className="px-6 py-3.5 text-stone-400">
+                  <td className="px-6 py-3.5 text-stone-400 text-xs">
                     {new Date(order.createdAt).toLocaleDateString("vi-VN")}
-                  </td>
-                  <td className="px-6 py-3.5">
-                    <Link
-                      href={`/admin/orders/${order.id}`}
-                      className="text-[#C4829A] hover:underline text-xs"
-                    >
-                      Chi tiết
-                    </Link>
                   </td>
                 </tr>
               ))}
               {recentOrders.length === 0 && (
                 <tr>
-                  <td
-                    colSpan={6}
-                    className="px-6 py-12 text-center text-stone-400"
-                  >
+                  <td colSpan={5} className="px-6 py-12 text-center text-stone-400">
                     Chưa có đơn hàng nào
                   </td>
                 </tr>

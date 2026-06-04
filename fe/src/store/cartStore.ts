@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 interface CartState {
   cart: CartResponse | null;
   isLoading: boolean;
-  isOpen: boolean; // drawer mở/đóng
+  isOpen: boolean;
 
   fetchCart: () => Promise<void>;
   addItem: (
@@ -23,6 +23,7 @@ interface CartState {
 
   // Computed
   totalItems: () => number;
+  // FIX Critical #2: backend trả về totalAmount, getter này phải đọc đúng field
   totalPrice: () => number;
 }
 
@@ -89,5 +90,6 @@ export const useCartStore = create<CartState>()((set, get) => ({
   toggleCart: () => set((s) => ({ isOpen: !s.isOpen })),
 
   totalItems: () => get().cart?.totalItems ?? 0,
-  totalPrice: () => get().cart?.totalPrice ?? 0,
+  // FIX Critical #2: đọc totalAmount (field thực của backend), không phải totalPrice
+  totalPrice: () => get().cart?.totalAmount ?? 0,
 }));

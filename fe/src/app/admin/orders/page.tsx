@@ -24,28 +24,63 @@ const STATUS_CONFIG: Record<
   OrderStatus,
   { label: string; color: string; icon: React.ElementType }
 > = {
-  PENDING:    { label: "Chờ xác nhận", color: "bg-amber-50 text-amber-700",    icon: Clock },
-  CONFIRMED:  { label: "Đã xác nhận",  color: "bg-blue-50 text-blue-700",      icon: CheckCircle2 },
-  PROCESSING: { label: "Đang xử lý",   color: "bg-indigo-50 text-indigo-700",  icon: Package },
-  SHIPPING:   { label: "Đang giao",    color: "bg-cyan-50 text-cyan-700",       icon: Truck },
-  DELIVERED:  { label: "Đã giao",      color: "bg-emerald-50 text-emerald-700", icon: CheckCircle2 },
-  CANCELLED:  { label: "Đã huỷ",       color: "bg-red-50 text-red-700",         icon: XCircle },
-  REFUNDED:   { label: "Hoàn tiền",    color: "bg-stone-50 text-stone-700",     icon: RefreshCw },
+  PENDING: {
+    label: "Chờ xác nhận",
+    color: "bg-amber-50 text-amber-700",
+    icon: Clock,
+  },
+  CONFIRMED: {
+    label: "Đã xác nhận",
+    color: "bg-blue-50 text-blue-700",
+    icon: CheckCircle2,
+  },
+  PROCESSING: {
+    label: "Đang xử lý",
+    color: "bg-indigo-50 text-indigo-700",
+    icon: Package,
+  },
+  SHIPPING: {
+    label: "Đang giao",
+    color: "bg-cyan-50 text-cyan-700",
+    icon: Truck,
+  },
+  DELIVERED: {
+    label: "Đã giao",
+    color: "bg-emerald-50 text-emerald-700",
+    icon: CheckCircle2,
+  },
+  CANCELLED: {
+    label: "Đã huỷ",
+    color: "bg-red-50 text-red-700",
+    icon: XCircle,
+  },
+  REFUNDED: {
+    label: "Hoàn tiền",
+    color: "bg-stone-50 text-stone-700",
+    icon: RefreshCw,
+  },
 };
 
 const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus[]>> = {
-  PENDING:    ["CONFIRMED", "CANCELLED"],
-  CONFIRMED:  ["PROCESSING", "CANCELLED"],
+  PENDING: ["CONFIRMED", "CANCELLED"],
+  CONFIRMED: ["PROCESSING", "CANCELLED"],
   PROCESSING: ["SHIPPING", "CANCELLED"],
-  SHIPPING:   ["DELIVERED", "CANCELLED"],
-  DELIVERED:  ["REFUNDED"],
+  SHIPPING: ["DELIVERED", "CANCELLED"],
+  DELIVERED: ["REFUNDED"],
 };
 
 const fmtVND = (n: number) =>
-  new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(n);
 
 const fmtDate = (s: string) =>
-  new Date(s).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
+  new Date(s).toLocaleString("vi-VN", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
 
 // ── Component ────────────────────────────────────────────────
 export default function AdminOrdersPage() {
@@ -167,7 +202,9 @@ export default function AdminOrdersPage() {
         </div>
         <select
           value={statusFilter}
-          onChange={(e) => handleStatusFilter(e.target.value as OrderStatus | "")}
+          onChange={(e) =>
+            handleStatusFilter(e.target.value as OrderStatus | "")
+          }
           className="px-3 py-2 text-sm border border-stone-200 rounded-xl focus:outline-none focus:border-[#E8A4B8]"
         >
           <option value="">Tất cả trạng thái</option>
@@ -231,8 +268,12 @@ export default function AdminOrdersPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="text-stone-700">{order.shippingName ?? order.shipFullName ?? "—"}</p>
-<p className="text-xs text-stone-400">{order.shippingPhone ?? order.shipPhone ?? ""}</p>
+                        <p className="text-stone-700">
+                          {order.shippingName ?? order.shipFullName ?? "—"}
+                        </p>
+                        <p className="text-xs text-stone-400">
+                          {order.shippingPhone ?? order.shipPhone ?? ""}
+                        </p>
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -248,14 +289,20 @@ export default function AdminOrdersPage() {
                       <td className="px-4 py-3 text-stone-400 text-xs">
                         {fmtDate(order.createdAt)}
                       </td>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <td
+                        className="px-4 py-3"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {nextStatuses.length > 0 && (
                           <select
                             disabled={updatingId === order.id}
                             defaultValue=""
                             onChange={(e) => {
                               if (e.target.value)
-                                handleUpdateStatus(order.id, e.target.value as OrderStatus);
+                                handleUpdateStatus(
+                                  order.id,
+                                  e.target.value as OrderStatus,
+                                );
                               e.target.value = "";
                             }}
                             className="text-xs border border-stone-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#E8A4B8] disabled:opacity-50"
@@ -299,8 +346,8 @@ export default function AdminOrdersPage() {
                               </div>
                             ))}
                             {order.shipAddress && (
-                              <p className="text-xs text-stone-400 pt-2 border-t border-stone-100 mt-2">
-                                📍 {order.shipAddress}
+                              <p className="text-xs text-stone-400 pt-2 ...">
+                                📍 {order.shippingAddress ?? order.shipAddress}
                               </p>
                             )}
                             {order.customerNote && (

@@ -1,10 +1,4 @@
 "use client";
-// fe/src/app/admin/categories/page.tsx  – ENHANCED version
-// Changes vs original:
-//  - Uses /admin/categories (all including inactive)
-//  - isActive toggle
-//  - Pagination
-//  - Search
 
 import { useEffect, useState } from "react";
 import axiosInstance from "@/lib/axios";
@@ -30,6 +24,7 @@ interface CatForm {
   parentId: string;
   sortOrder: string;
 }
+
 const EMPTY: CatForm = {
   name: "",
   slug: "",
@@ -56,54 +51,59 @@ function slugify(s: string) {
 }
 
 export default function AdminCategoriesPage() {
-  const [cats, setCats] = useState<CategoryResponse[]>([]);
-  const [page, setPage] = useState(0);
+  const [cats, setCats]             = useState<CategoryResponse[]>([]);
+  const [page, setPage]             = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  // loading=true từ đầu
+  const [loading, setLoading]       = useState(true);
+  const [search, setSearch]         = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
 
   const [showModal, setShowModal] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState<CatForm>(EMPTY);
-  const [saving, setSaving] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editId, setEditId]       = useState<string | null>(null);
+  const [form, setForm]           = useState<CatForm>(EMPTY);
+  const [saving, setSaving]       = useState(false);
+  const [deleteId, setDeleteId]   = useState<string | null>(null);
 
-  // Fetch (all including inactive from admin endpoint)
   useEffect(() => {
     let cancelled = false;
 
-    Promise.resolve().then(() => {
-      if (cancelled) return;
-      setLoading(true);
+    // KHÔNG gọi setLoading(true) ở đây
+    const params = new URLSearchParams({ page: String(page), size: "15" });
+    if (search) params.set("keyword", search);
 
-      const params = new URLSearchParams({ page: String(page), size: "15" });
-      if (search) params.set("keyword", search);
+    axiosInstance
+      .get<{ data: PageResponse<CategoryResponse> }>(`/admin/categories?${params}`)
+      .then((res) => {
+        if (cancelled) return;
+        setCats(res.data.data.content);
+        setTotalPages(res.data.data.totalPages);
+      })
+      .catch(console.error)
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-      axiosInstance
-        .get<{ data: PageResponse<CategoryResponse> }>(
-          `/admin/categories?${params}`,
-        )
-        .then((res) => {
-          if (cancelled) return;
-          setCats(res.data.data.content);
-          setTotalPages(res.data.data.totalPages);
-        })
-        .catch(console.error)
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
-    });
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [page, search, refreshKey]);
+
+  // setLoading(true) từ event handler
+  const handleSearch = (value: string) => {
+    setLoading(true);
+    setSearch(value);
+    setPage(0);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setLoading(true);
+    setPage(newPage);
+  };
 
   const refresh = () => {
     setLoading(true);
     setRefreshKey((k) => k + 1);
   };
+
   const setField = <K extends keyof CatForm>(k: K, v: CatForm[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
@@ -112,6 +112,7 @@ export default function AdminCategoriesPage() {
     setForm(EMPTY);
     setShowModal(true);
   };
+
   const openEdit = (c: CategoryResponse) => {
     setEditId(c.id);
     setForm({
@@ -120,18 +121,13 @@ export default function AdminCategoriesPage() {
       description: c.description ?? "",
       imageUrl: c.imageUrl ?? "",
       parentId: c.parent?.id ?? "",
-      sortOrder: String(
-        (c as unknown as { sortOrder?: number }).sortOrder ?? 0,
-      ),
+      sortOrder: String((c as unknown as { sortOrder?: number }).sortOrder ?? 0),
     });
     setShowModal(true);
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) {
-      toast.error("Tên không được trống");
-      return;
-    }
+    if (!form.name.trim()) { toast.error("Tên không được trống"); return; }
     setSaving(true);
     const payload = {
       name: form.name,
@@ -180,19 +176,14 @@ export default function AdminCategoriesPage() {
     }
   };
 
-  // Root cats only for parent selector
   const rootCats = cats.filter((c) => !c.parent);
 
   return (
     <div className="p-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-stone-800">
-            Quản lý danh mục
-          </h1>
-          <p className="text-sm text-stone-500 mt-1">
-            Thêm, sửa, xóa danh mục sản phẩm
-          </p>
+          <h1 className="text-2xl font-bold text-stone-800">Quản lý danh mục</h1>
+          <p className="text-sm text-stone-500 mt-1">Thêm, sửa, xóa danh mục sản phẩm</p>
         </div>
         <button
           onClick={openCreate}
@@ -204,18 +195,12 @@ export default function AdminCategoriesPage() {
 
       {/* Search */}
       <div className="relative max-w-sm">
-        <Search
-          size={14}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
-        />
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
         <input
           type="text"
           placeholder="Tìm kiếm danh mục..."
           value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(0);
-          }}
+          onChange={(e) => handleSearch(e.target.value)}
           className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:border-[#E8A4B8] bg-white"
         />
       </div>
@@ -226,13 +211,9 @@ export default function AdminCategoriesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-xs text-stone-400 uppercase tracking-wide bg-stone-50 border-b border-stone-100">
-                <th className="text-left px-6 py-3 font-medium">
-                  Tên danh mục
-                </th>
+                <th className="text-left px-6 py-3 font-medium">Tên danh mục</th>
                 <th className="text-left px-6 py-3 font-medium">Slug</th>
-                <th className="text-left px-6 py-3 font-medium">
-                  Danh mục cha
-                </th>
+                <th className="text-left px-6 py-3 font-medium">Danh mục cha</th>
                 <th className="text-left px-6 py-3 font-medium">Thứ tự</th>
                 <th className="text-left px-6 py-3 font-medium">Trạng thái</th>
                 <th className="text-right px-6 py-3 font-medium">Thao tác</th>
@@ -251,47 +232,32 @@ export default function AdminCategoriesPage() {
                 ))
               ) : cats.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-12 text-stone-400">
-                    Không có danh mục
+                  <td colSpan={6} className="text-center py-12 text-stone-400 text-sm">
+                    Không có danh mục nào
                   </td>
                 </tr>
               ) : (
                 cats.map((c) => (
-                  <tr
-                    key={c.id}
-                    className="border-b border-stone-50 hover:bg-stone-50/50 transition-colors"
-                  >
+                  <tr key={c.id} className="border-b border-stone-50 hover:bg-stone-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         {c.imageUrl && (
-                          <img
-                            src={c.imageUrl}
-                            alt={c.name}
-                            className="w-8 h-8 rounded-lg object-cover border border-stone-100"
-                          />
+                          <img src={c.imageUrl} alt={c.name} className="w-7 h-7 rounded-lg object-cover" />
                         )}
-                        <span className="font-medium text-stone-800">
-                          {c.name}
-                        </span>
+                        <span className="font-medium text-stone-800">{c.name}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 font-mono text-xs text-stone-400">
-                      {c.slug}
-                    </td>
-                    <td className="px-6 py-4 text-stone-500 text-xs">
-                      {c.parent?.name ?? "—"}
-                    </td>
+                    <td className="px-6 py-4 text-stone-400 font-mono text-xs">{c.slug}</td>
+                    <td className="px-6 py-4 text-stone-500">{c.parent?.name ?? "—"}</td>
                     <td className="px-6 py-4 text-stone-500">
                       {(c as unknown as { sortOrder?: number }).sortOrder ?? 0}
                     </td>
                     <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                          c.isActive !== false
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-stone-100 text-stone-500"
-                        }`}
-                      >
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        c.isActive !== false
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-stone-100 text-stone-500"
+                      }`}>
                         {c.isActive !== false ? "Hoạt động" : "Đã ẩn"}
                       </span>
                     </td>
@@ -302,10 +268,7 @@ export default function AdminCategoriesPage() {
                           className="p-1.5 rounded-lg text-stone-400 hover:bg-stone-100 transition-colors"
                         >
                           {c.isActive !== false ? (
-                            <ToggleRight
-                              size={15}
-                              className="text-emerald-600"
-                            />
+                            <ToggleRight size={15} className="text-emerald-600" />
                           ) : (
                             <ToggleLeft size={15} />
                           )}
@@ -333,19 +296,17 @@ export default function AdminCategoriesPage() {
 
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-6 py-4 border-t border-stone-100">
-            <p className="text-sm text-stone-500">
-              Trang {page + 1} / {totalPages}
-            </p>
+            <p className="text-sm text-stone-500">Trang {page + 1} / {totalPages}</p>
             <div className="flex gap-2">
               <button
-                onClick={() => setPage((p) => p - 1)}
+                onClick={() => handlePageChange(Math.max(0, page - 1))}
                 disabled={page === 0}
                 className="p-2 rounded-lg border border-stone-200 disabled:opacity-30 hover:bg-stone-50"
               >
                 <ChevronLeft size={14} />
               </button>
               <button
-                onClick={() => setPage((p) => p + 1)}
+                onClick={() => handlePageChange(Math.min(totalPages - 1, page + 1))}
                 disabled={page >= totalPages - 1}
                 className="p-2 rounded-lg border border-stone-200 disabled:opacity-30 hover:bg-stone-50"
               >
@@ -356,99 +317,85 @@ export default function AdminCategoriesPage() {
         )}
       </div>
 
-      {/* Modal */}
+      {/* Delete confirm */}
+      {deleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm mx-4 shadow-xl">
+            <h3 className="text-base font-semibold text-stone-800 mb-2">Xác nhận xóa</h3>
+            <p className="text-sm text-stone-500 mb-5">Danh mục sẽ bị xóa. Tiếp tục?</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteId(null)}
+                className="flex-1 py-2.5 rounded-xl border border-stone-200 text-sm font-medium"
+              >Huỷ</button>
+              <button
+                onClick={() => handleDelete(deleteId)}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium"
+              >Xóa</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal create/edit */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100 sticky top-0 bg-white">
               <h2 className="font-semibold text-stone-800">
-                {editId ? "Cập nhật danh mục" : "Thêm danh mục"}
+                {editId ? "Cập nhật danh mục" : "Thêm danh mục mới"}
               </h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="p-1.5 rounded-lg hover:bg-stone-100"
-              >
+              <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg hover:bg-stone-100">
                 <X size={16} />
               </button>
             </div>
+
             <div className="p-6 space-y-4">
               <div>
-                <label className="text-xs font-medium text-stone-500 mb-1 block">
-                  Tên danh mục *
-                </label>
+                <label className="text-xs font-medium text-stone-500 mb-1 block">Tên danh mục *</label>
                 <input
                   value={form.name}
                   onChange={(e) => {
                     setField("name", e.target.value);
-                    setField("slug", slugify(e.target.value));
+                    if (!editId) setField("slug", slugify(e.target.value));
                   }}
                   className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E8A4B8]"
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-stone-500 mb-1 block">
-                  Slug
-                </label>
+                <label className="text-xs font-medium text-stone-500 mb-1 block">Slug</label>
                 <input
                   value={form.slug}
                   onChange={(e) => setField("slug", e.target.value)}
-                  className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-[#E8A4B8]"
+                  className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E8A4B8] font-mono"
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-stone-500 mb-1 block">
-                  Danh mục cha
-                </label>
+                <label className="text-xs font-medium text-stone-500 mb-1 block">Danh mục cha</label>
                 <select
                   value={form.parentId}
                   onChange={(e) => setField("parentId", e.target.value)}
-                  className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E8A4B8] bg-white"
+                  className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#E8A4B8]"
                 >
-                  <option value="">— Danh mục gốc —</option>
+                  <option value="">-- Không có --</option>
                   {rootCats
                     .filter((c) => c.id !== editId)
-                    .map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-medium text-stone-500 mb-1 block">
-                    Thứ tự hiển thị
-                  </label>
-                  <input
-                    type="number"
-                    value={form.sortOrder}
-                    onChange={(e) => setField("sortOrder", e.target.value)}
-                    className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E8A4B8]"
-                  />
-                </div>
-              </div>
               <div>
-                <label className="text-xs font-medium text-stone-500 mb-1 block">
-                  URL ảnh
-                </label>
+                <label className="text-xs font-medium text-stone-500 mb-1 block">URL ảnh</label>
                 <input
                   value={form.imageUrl}
                   onChange={(e) => setField("imageUrl", e.target.value)}
                   placeholder="https://..."
                   className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E8A4B8]"
                 />
-                {form.imageUrl && (
-                  <img
-                    src={form.imageUrl}
-                    alt="preview"
-                    className="mt-2 h-16 object-cover rounded-xl border border-stone-100"
-                  />
-                )}
               </div>
               <div>
-                <label className="text-xs font-medium text-stone-500 mb-1 block">
-                  Mô tả
-                </label>
+                <label className="text-xs font-medium text-stone-500 mb-1 block">Mô tả</label>
                 <textarea
                   value={form.description}
                   onChange={(e) => setField("description", e.target.value)}
@@ -456,44 +403,28 @@ export default function AdminCategoriesPage() {
                   className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E8A4B8] resize-none"
                 />
               </div>
+              <div>
+                <label className="text-xs font-medium text-stone-500 mb-1 block">Thứ tự hiển thị</label>
+                <input
+                  value={form.sortOrder}
+                  onChange={(e) => setField("sortOrder", e.target.value)}
+                  type="number"
+                  min="0"
+                  className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E8A4B8]"
+                />
+              </div>
             </div>
-            <div className="flex justify-end gap-3 px-6 pb-6">
+
+            <div className="px-6 py-4 border-t border-stone-100 flex gap-3">
               <button
                 onClick={() => setShowModal(false)}
-                className="px-4 py-2 rounded-xl border border-stone-200 text-sm text-stone-600 hover:bg-stone-50"
-              >
-                Hủy
-              </button>
+                className="flex-1 py-2.5 rounded-xl border border-stone-200 text-sm font-medium"
+              >Huỷ</button>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-5 py-2 rounded-xl bg-[#1A1614] text-white text-sm font-medium hover:bg-[#2d2320] disabled:opacity-50 transition-colors"
-              >
-                {saving ? "Đang lưu..." : editId ? "Cập nhật" : "Tạo mới"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {deleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6 space-y-4">
-            <h3 className="font-semibold text-stone-800">Xác nhận xóa?</h3>
-            <p className="text-sm text-stone-500">Danh mục sẽ bị xóa mềm.</p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setDeleteId(null)}
-                className="px-4 py-2 rounded-xl border border-stone-200 text-sm text-stone-600 hover:bg-stone-50"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={() => handleDelete(deleteId)}
-                className="px-4 py-2 rounded-xl bg-red-500 text-white text-sm hover:bg-red-600"
-              >
-                Xóa
-              </button>
+                className="flex-1 py-2.5 rounded-xl bg-[#1A1614] text-white text-sm font-medium disabled:opacity-50"
+              >{saving ? "Đang lưu..." : editId ? "Cập nhật" : "Tạo mới"}</button>
             </div>
           </div>
         </div>

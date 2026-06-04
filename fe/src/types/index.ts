@@ -20,6 +20,7 @@ export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
   user: UserResponse;
+  expiresIn?: number;
 }
 
 export interface UserResponse {
@@ -169,7 +170,7 @@ export interface OrderItemResponse {
   unitPrice: number;
   quantity: number;
   totalPrice: number;
-  // FIX Medium #4: backend trả về "hasReview", thêm cả "isReviewed" để tương thích
+  // FIX: backend trả hasReview (từ OrderMapper expression), giữ cả isReviewed để tương thích
   hasReview?: boolean;
   isReviewed?: boolean;
 }
@@ -183,9 +184,19 @@ export interface OrderResponse {
   shippingFee: number;
   discountAmount: number;
   totalAmount: number;
+
+  // FIX Bug #5: Backend OrderResponse.java đã đổi tên field:
+  // shippingName (thay cho shipFullName)
+  // shippingPhone (thay cho shipPhone)
+  // shippingAddress (thay cho shipAddress)
+  shippingName?: string;
+  shippingPhone?: string;
+  shippingAddress?: string;
+  // Giữ lại field cũ để không break code chưa cập nhật
   shipFullName?: string;
   shipPhone?: string;
   shipAddress?: string;
+
   couponCode?: string;
   customerNote?: string;
   items: OrderItemResponse[];
@@ -243,14 +254,10 @@ export interface CartItemResponse {
   availableStock: number;
 }
 
-// FIX Critical #2: backend trả về "totalAmount", không phải "totalPrice"
-// Thêm cả hai để tránh breaking change với các component dùng totalPrice
 export interface CartResponse {
   items: CartItemResponse[];
   totalItems: number;
   totalAmount: number;
-  // Alias để tương thích ngược với code dùng totalPrice
-  totalPrice?: number;
 }
 
 export interface AddToCartRequest {
@@ -260,17 +267,15 @@ export interface AddToCartRequest {
 }
 
 // ─── Review ──────────────────────────────────────────────────
-// FIX Critical #1: đồng bộ với những gì ReviewSection.tsx thực sự dùng
-// Backend Java (ReviewResponse.java) trả về: authorName, authorAvatar, images (List<String>)
-// ReviewSection.tsx dùng: userFullName, userAvatarUrl, imageUrls
-// → Khai báo đủ các field để component không bị lỗi TS
+// FIX: Đồng bộ với ReviewSection.tsx và backend ReviewResponse.java
+// Backend trả: authorName, authorAvatar, images (List<String>)
+// ReviewSection dùng: userFullName, userAvatarUrl, imageUrls
 export interface ReviewResponse {
   id: string;
   userId?: string;
-  // Backend fields (authorName, authorAvatar) và FE-expected fields đều được khai báo
-  userFullName: string;    // mapped từ authorName
+  userFullName: string;    // mapped từ authorName trong ReviewSection
   userAvatarUrl?: string;  // mapped từ authorAvatar
-  // Giữ lại các field cũ phòng backend đổi
+  // Giữ field cũ phòng backend chưa đổi
   userName?: string;
   userAvatar?: string;
   rating: number;
@@ -278,8 +283,8 @@ export interface ReviewResponse {
   comment?: string;
   isVerified?: boolean;
   helpfulCount?: number;
-  imageUrls?: string[];    // FIX: ReviewSection dùng imageUrls (string[])
-  images?: { id: string; url: string }[] | string[];  // tương thích cả hai dạng
+  imageUrls?: string[];
+  images?: { id: string; url: string }[] | string[];
   createdAt: string;
 }
 
