@@ -28,9 +28,6 @@ export interface UserResponse {
   fullName: string;
   phone?: string;
   avatarUrl?: string;
-  // FIX BUG 9: backend trả về "USER" / "ADMIN" / "STAFF" không có prefix "ROLE_"
-  // Spring Security thêm prefix khi build GrantedAuthority, nhưng JSON response
-  // từ UserMapper dùng enum.name() → "USER", "ADMIN", "STAFF"
   role: "ROLE_USER" | "ROLE_ADMIN" | "ROLE_STAFF";
   isActive: boolean;
   emailVerified: boolean;
@@ -151,12 +148,11 @@ export interface ProductFilterRequest {
 }
 
 // ─── Order ───────────────────────────────────────────────────
-// FIX BUG 8: enum phải khớp với backend OrderStatus
 export type OrderStatus =
   | "PENDING"
   | "CONFIRMED"
   | "PROCESSING"
-  | "SHIPPING" // ← đúng là SHIPPING (không phải SHIPPED)
+  | "SHIPPING"
   | "DELIVERED"
   | "CANCELLED"
   | "REFUNDED";
@@ -295,4 +291,35 @@ export interface PaymentResponse {
   amount: number;
   transactionId?: string;
   paidAt?: string;
+}
+
+// ─── Banner ──────────────────────────────────────────────────
+// FIX: type này bị thiếu → bannerApi trong api.ts báo lỗi đỏ
+// Các field khớp với BannerResponse.java trong backend
+export interface BannerResponse {
+  id: string;
+  title?: string;
+  subtitle?: string;
+  imageUrl: string;
+  linkUrl?: string;
+  position: string;
+  sortOrder?: number;
+  isActive: boolean;
+  startsAt?: string;
+  expiresAt?: string;
+}
+
+// ─── Notification ─────────────────────────────────────────────
+// FIX: type này bị thiếu → userApi.getNotifications trong api.ts báo lỗi đỏ
+// Các field khớp với NotificationResponse.java trong backend
+export interface NotificationResponse {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  imageUrl?: string;
+  actionUrl?: string;
+  isRead: boolean;
+  readAt?: string;
+  createdAt: string;
 }

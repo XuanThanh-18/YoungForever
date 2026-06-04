@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import React from "react";
 import axiosInstance from "@/lib/axios";
 import type { OrderResponse, PageResponse } from "@/types";
 import {
@@ -19,12 +20,11 @@ import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
 
 // ── Types ────────────────────────────────────────────────────
-// FIX BUG 8: dùng "SHIPPING" khớp với backend enum OrderStatus
 type OrderStatus =
   | "PENDING"
   | "CONFIRMED"
   | "PROCESSING"
-  | "SHIPPING" // ← FIX: was "SHIPPED"
+  | "SHIPPING"
   | "DELIVERED"
   | "CANCELLED"
   | "REFUNDED";
@@ -52,7 +52,7 @@ const STATUS_CONFIG: Record<
     label: "Đang giao",
     color: "bg-purple-100 text-purple-700",
     icon: Truck,
-  }, // ← FIX
+  },
   DELIVERED: {
     label: "Đã giao",
     color: "bg-emerald-100 text-emerald-700",
@@ -73,8 +73,8 @@ const STATUS_CONFIG: Record<
 const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus[]>> = {
   PENDING: ["CONFIRMED", "CANCELLED"],
   CONFIRMED: ["PROCESSING", "CANCELLED"],
-  PROCESSING: ["SHIPPING", "CANCELLED"], // ← FIX: was SHIPPED
-  SHIPPING: ["DELIVERED"], // ← FIX: was SHIPPED
+  PROCESSING: ["SHIPPING", "CANCELLED"],
+  SHIPPING: ["DELIVERED"],
   DELIVERED: ["REFUNDED"],
 };
 
@@ -102,7 +102,6 @@ export default function AdminOrdersPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  // FIX BUG 11: truyền keyword + status cùng lúc thay vì 2 nhánh riêng
   useEffect(() => {
     const params = new URLSearchParams({ page: String(page), size: "20" });
     if (search.trim()) params.set("keyword", search.trim());
@@ -220,10 +219,11 @@ export default function AdminOrdersPage() {
                   NEXT_STATUS[order.status as OrderStatus] ?? [];
                 const isExpanded = expandedId === order.id;
 
+                // FIX: thay <> bằng <React.Fragment key={order.id}> để tránh React key warning
+                // Fragment bọc ngoài cần key khi nằm trong .map()
                 return (
-                  <>
+                  <React.Fragment key={order.id}>
                     <tr
-                      key={order.id}
                       className="border-b border-stone-50 hover:bg-stone-50 cursor-pointer"
                       onClick={() =>
                         setExpandedId(isExpanded ? null : order.id)
@@ -290,44 +290,38 @@ export default function AdminOrdersPage() {
                       <tr key={`${order.id}-detail`} className="bg-stone-50">
                         <td colSpan={6} className="px-4 py-3">
                           <div className="text-xs text-stone-500 font-medium mb-2">
-                            Chi tiết đơn hàng – {order.items.length} sản phẩm
+                            Chi tiết đơn hàng – {order.items?.length ?? 0} sản
+                            phẩm
                           </div>
                           <div className="space-y-1.5">
-                            {order.items.map((item) => (
+                            {order.items?.map((item) => (
                               <div
                                 key={item.id}
                                 className="flex items-center gap-3 bg-white rounded-lg p-2.5"
                               >
-                                {item.imageUrl && (
-                                  <img
-                                    src={item.imageUrl}
-                                    alt={item.productName}
-                                    className="w-9 h-9 rounded-lg object-cover flex-shrink-0"
-                                  />
-                                )}
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-medium text-stone-700 text-xs truncate">
-                                    {item.productName}
-                                  </div>
+                                <div className="text-xs text-stone-600 flex-1">
+                                  {item.productName}
                                   {item.variantName && (
-                                    <div className="text-stone-400 text-xs">
-                                      {item.variantName}
-                                    </div>
+                                    <span className="text-stone-400">
+                                      {" "}
+                                      – {item.variantName}
+                                    </span>
                                   )}
                                 </div>
                                 <div className="text-xs text-stone-500">
                                   x{item.quantity}
                                 </div>
-                                <div className="text-xs font-medium text-stone-800">
-                                  {fmtVND(item.totalPrice)}
+                                <div className="text-xs font-medium text-stone-700">
+                                  {fmtVND(item.unitPrice * item.quantity)}
                                 </div>
                               </div>
                             ))}
                           </div>
-                          <div className="mt-2 text-xs text-stone-500 space-y-0.5">
-                            {order.shipAddress && (
-                              <div>📍 {order.shipAddress}</div>
-                            )}
+                          <div className="mt-2 pt-2 border-t border-stone-200 text-xs text-stone-500 space-y-1">
+                            <div>
+                              📍 {order.shipFullName} – {order.shipPhone}
+                            </div>
+                            <div>🏠 {order.shipAddress}</div>
                             {order.couponCode && (
                               <div>
                                 🏷️ Mã giảm giá: {order.couponCode} (−
@@ -341,7 +335,7 @@ export default function AdminOrdersPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </React.Fragment>
                 );
               })}
             </tbody>

@@ -1,12 +1,14 @@
 // ═══════════════════════════════════════════════════════════════════
-// FILE: fe/src/lib/axios.ts  (đã có – kiểm tra và cập nhật nếu cần)
+// FILE: fe/src/lib/axios.ts
 // ═══════════════════════════════════════════════════════════════════
 import axios from "axios";
 import Cookies from "js-cookie";
 import { useAuthStore } from "@/store/authStore";
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api",
+  // FIX: fallback đổi từ "http://localhost:8080/api" → "http://localhost:8080/api/v1"
+  // Backend dùng context-path: /api/v1 (xem application.yml: server.servlet.context-path)
+  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api/v1",
   timeout: 15_000,
   headers: { "Content-Type": "application/json" },
 });
@@ -60,7 +62,7 @@ api.interceptors.response.use(
 
       try {
         const { data } = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
+          `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api/v1"}/auth/refresh`,
           { refreshToken },
         );
         const newAccess: string = data.data.accessToken;

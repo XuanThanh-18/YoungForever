@@ -16,6 +16,8 @@ import type {
   ReviewResponse,
   CouponResponse,
   ProductFilterRequest,
+  BannerResponse,
+  NotificationResponse,
 } from "@/types";
 
 // ─── Auth ────────────────────────────────────────────────────
