@@ -34,7 +34,8 @@ public class BrandController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    // FIX: 'ROLE_ADMIN' → 'ADMIN' (hasRole tự thêm prefix ROLE_)
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<BrandResponse>> createBrand(
             @Valid @RequestBody CreateBrandRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -42,7 +43,8 @@ public class BrandController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    // FIX: 'ROLE_ADMIN' → 'ADMIN'
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<BrandResponse>> updateBrand(
             @PathVariable UUID id,
             @Valid @RequestBody CreateBrandRequest request) {
@@ -50,7 +52,8 @@ public class BrandController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    // FIX: 'ROLE_ADMIN' → 'ADMIN'
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteBrand(@PathVariable UUID id) {
         brandService.softDelete(id);
         return ResponseEntity.ok(ApiResponse.success(null));

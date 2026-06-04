@@ -28,22 +28,16 @@ import java.util.UUID;
 /**
  * AdminController – single entry-point for all /admin/** routes.
  *
- * Delegates to existing services (AdminService, ProductService, etc.)
- * so no business logic lives here.
- *
- * CHANGES vs original:
- *  - Added: product admin CRUD with search/filter
- *  - Added: category admin CRUD with search/pagination
- *  - Added: brand admin CRUD
- *  - Added: user search by keyword + role filter
- *  - Added: PATCH /admin/users/{id}/role
- *  - Added: POST /admin/upload  (multipart image upload)
- *  - Added: GET  /admin/products/low-stock
+ * FIX: @PreAuthorize("hasRole('ROLE_ADMIN')") → hasRole('ADMIN')
+ * Lý do: Spring's hasRole() tự thêm prefix "ROLE_".
+ * Enum UserRole.ROLE_ADMIN → name() = "ROLE_ADMIN" → authority = "ROLE_ADMIN"
+ * hasRole("ADMIN") → tìm "ROLE_ADMIN" ✓
+ * hasRole("ROLE_ADMIN") → tìm "ROLE_ROLE_ADMIN" ✗ (403)
  */
 @RestController
 @RequestMapping("/admin")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ROLE_ADMIN')")
+@PreAuthorize("hasRole('ADMIN')")
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Admin", description = "Quản trị viên")
 public class AdminController {

@@ -23,12 +23,30 @@ public interface CategoryRepository extends JpaRepository<Category, UUID> {
     @Query("SELECT c FROM Category c WHERE c.parent.id = :parentId AND c.isActive = TRUE ORDER BY c.sortOrder")
     List<Category> findActiveByParentId(UUID parentId);
 
-    // Admin: includes inactive, with keyword search
-    @Query("""
-        SELECT c FROM Category c
-        WHERE (:keyword IS NULL OR LOWER(c.name) LIKE LOWER(CONCAT('%', :keyword, '%')))
-          AND (:isActive IS NULL OR c.isActive = :isActive)
-        """)
+    /**
+     * FIX: Đổi JPQL → native SQL với CAST(:keyword AS text) tường minh.
+     * Hibernate 6 + PostgreSQL bind tham số null dưới dạng bytea khi dùng JPQL,
+     * khiến LOWER(?) gọi lower(bytea) không tồn tại → lỗi 42883.
+     * Native SQL với CAST giải quyết triệt để vấn đề này.
+     *
+     * Cũng thêm c.deleted_at IS NULL vì @SQLRestriction bị bỏ qua trong @Query tùy chỉnh.
+     */
+    @Query(value = """
+        SELECT * FROM categories c
+        WHERE c.deleted_at IS NULL
+          AND (CAST(:keyword AS text) IS NULL
+               OR LOWER(c.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%')))
+          AND (:isActive IS NULL OR c.is_active = :isActive)
+        ORDER BY c.sort_order ASC, c.name ASC
+        """,
+            countQuery = """
+        SELECT COUNT(*) FROM categories c
+        WHERE c.deleted_at IS NULL
+          AND (CAST(:keyword AS text) IS NULL
+               OR LOWER(c.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%')))
+          AND (:isActive IS NULL OR c.is_active = :isActive)
+        """,
+            nativeQuery = true)
     Page<Category> adminSearch(
             @Param("keyword") String keyword,
             @Param("isActive") Boolean isActive,

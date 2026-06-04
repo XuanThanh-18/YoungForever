@@ -85,7 +85,13 @@ public class AdminServiceImpl implements AdminService {
         var pageable = PageRequest.of(page, size);
 
         String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
-        Page<Order> result = orderRepository.searchOrders(kw, status, pageable);
+
+        // FIX: searchOrders giờ dùng native query nhận String thay vì OrderStatus enum
+        // để tránh lỗi "lower(bytea) does not exist" trên PostgreSQL.
+        // Convert enum → String (tên enum) hoặc null nếu không filter theo status.
+        String statusStr = (status != null) ? status.name() : null;
+
+        Page<Order> result = orderRepository.searchOrders(kw, statusStr, pageable);
         return PageResponse.from(result.map(orderMapper::toResponse));
     }
 
@@ -100,13 +106,13 @@ public class AdminServiceImpl implements AdminService {
     public PageResponse<UserResponse> searchUsers(
             String keyword, UserRole role, int page, int size) {
         var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<User> result;
-        if ((keyword == null || keyword.isBlank()) && role == null) {
-            result = userRepository.findAll(pageable);
-        } else {
-            result = userRepository.searchUsers(
-                    keyword != null ? keyword.trim() : null, role, pageable);
-        }
+
+        // FIX: searchUsers giờ dùng native query nhận String thay vì UserRole enum
+        // để tránh lỗi "lower(bytea) does not exist" trên PostgreSQL.
+        String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
+        String roleStr = (role != null) ? role.name() : null;
+
+        Page<User> result = userRepository.searchUsers(kw, roleStr, pageable);
         return PageResponse.from(result.map(userMapper::toResponse));
     }
 
@@ -164,8 +170,9 @@ public class AdminServiceImpl implements AdminService {
     @Transactional
     public PageResponse<CategoryResponse> adminListCategories(
             String keyword, Boolean isActive, int page, int size) {
-        var pageable = PageRequest.of(page, size, Sort.by("sortOrder").ascending()
-                .and(Sort.by("name").ascending()));
+        // FIX: bỏ Sort khỏi PageRequest vì native query đã có ORDER BY sort_order, name
+        // Truyền Sort vào native query gây conflict và Hibernate không áp dụng được
+        var pageable = PageRequest.of(page, size);
         Page<Category> result = categoryRepository.adminSearch(keyword, isActive, pageable);
         return PageResponse.from(result.map(this::toCategoryResponse));
     }
@@ -254,12 +261,8 @@ public class AdminServiceImpl implements AdminService {
                         .slug(c.getParent().getSlug())
                         .build()
                         : null)
-                .children(c.getChildren() != null
-                        ? c.getChildren().stream()
-                        .filter(child -> child.getDeletedAt() == null)
-                        .map(this::toCategoryResponse)  // ← đệ quy thay vì build CategorySummary
-                        .toList()
-                        : List.of())
+                // FIX: KHÔNG gọi c.getChildren() — lazy collection gây LazyInitializationException
+                .children(List.of())
                 .build();
     }
 

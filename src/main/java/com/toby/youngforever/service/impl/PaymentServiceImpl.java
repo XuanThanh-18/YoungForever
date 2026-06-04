@@ -348,7 +348,13 @@ public class PaymentServiceImpl implements PaymentService {
         order.setConfirmedAt(LocalDateTime.now());
         orderRepository.save(order);
 
-        notificationService.sendOrderStatusUpdate(order.getUser().getId(), order);
+        notificationService.sendOrderStatusUpdate(
+                order.getUser().getId(),
+                order.getOrderNumber(),
+                order.getId(),
+                OrderStatus.CONFIRMED,
+                null
+        );
         log.info("[Payment] Thanh toán thành công: orderId={} txn={}", order.getId(), transactionId);
     }
 

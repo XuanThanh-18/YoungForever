@@ -40,6 +40,7 @@ public class SecurityConfig {
             "/products/**", "/categories/**", "/brands/**",
             "/blogs/**", "/banners/**", "/reviews/**",
             "/payments/vnpay/return",
+            "/payments/vnpay/ipn",
             "/images/**"
     };
 
@@ -47,7 +48,6 @@ public class SecurityConfig {
             "/auth/register", "/auth/login",
             "/auth/refresh", "/auth/forgot-password",
             "/auth/verify-email", "/auth/reset-password",
-            "/payments/vnpay/ipn",
             "/payments/momo/ipn"
     };
 
@@ -65,11 +65,10 @@ public class SecurityConfig {
                         .requestMatchers(SWAGGER_WHITELIST).permitAll()
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET).permitAll()
                         .requestMatchers(HttpMethod.POST, PUBLIC_POST).permitAll()
-                        // Admin-only routes
-                        .requestMatchers("/admin/**").hasRole("ROLE_ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/products/**").hasRole("ROLE_ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/products/**").hasAnyRole("ROLE_ADMIN", "ROLE_STAFF")
-                        .requestMatchers(HttpMethod.DELETE, "/products/**").hasRole("ROLE_ADMIN")
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/products/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/products/**").hasAnyRole("ADMIN", "STAFF")
+                        .requestMatchers(HttpMethod.DELETE, "/products/**").hasRole("ADMIN")
                         // Authenticated routes
                         .anyRequest().authenticated()
                 )

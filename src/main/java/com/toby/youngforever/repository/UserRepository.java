@@ -18,16 +18,38 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email);
     boolean existsByEmail(String email);
 
-    @Query("""
-        SELECT u FROM User u
-        WHERE (:keyword IS NULL
-               OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
-               OR LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%'))
-               OR u.phone LIKE CONCAT('%', :keyword, '%'))
-          AND (:role IS NULL OR u.role = :role)
-        """)
+    /**
+     * FIX: Lỗi "lower(bytea) does not exist" trên PostgreSQL xảy ra do Hibernate 6
+     * bind tham số null dưới dạng bytea khi dùng JPQL.
+     *
+     * Chuyển sang native SQL với CAST(:keyword AS text) và CAST(:role AS varchar)
+     * để PostgreSQL biết kiểu dữ liệu tường minh, tránh nhầm sang bytea.
+     */
+    @Query(value = """
+        SELECT * FROM users u
+        WHERE u.deleted_at IS NULL
+          AND (
+               CAST(:keyword AS text) IS NULL
+               OR LOWER(u.full_name) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+               OR LOWER(u.email)     LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+               OR u.phone             LIKE CONCAT('%', CAST(:keyword AS text), '%')
+              )
+          AND (CAST(:role AS varchar) IS NULL OR u.role = CAST(:role AS varchar))
+        """,
+            countQuery = """
+        SELECT COUNT(*) FROM users u
+        WHERE u.deleted_at IS NULL
+          AND (
+               CAST(:keyword AS text) IS NULL
+               OR LOWER(u.full_name) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+               OR LOWER(u.email)     LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+               OR u.phone            LIKE CONCAT('%', CAST(:keyword AS text), '%')
+              )
+          AND (CAST(:role AS varchar) IS NULL OR u.role = CAST(:role AS varchar))
+        """,
+            nativeQuery = true)
     Page<User> searchUsers(
             @Param("keyword") String keyword,
-            @Param("role") UserRole role,
+            @Param("role") String role,       // FIX: đổi từ UserRole → String vì native query
             Pageable pageable);
 }

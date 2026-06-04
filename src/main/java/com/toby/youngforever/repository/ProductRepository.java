@@ -40,20 +40,21 @@ public interface ProductRepository extends JpaRepository<Product, UUID>,
     @Query("UPDATE Product p SET p.stock = p.stock - :qty WHERE p.id = :id AND p.stock >= :qty")
     int decrementStock(@Param("id") UUID id, @Param("qty") int qty);
 
+    @Modifying
+    @Query("UPDATE Product p SET p.stock = p.stock + :qty WHERE p.id = :id")
+    void incrementStock(@Param("id") UUID id, @Param("qty") int qty);
+
     /**
-     * FIX BUG 3:
-     * - Bỏ ::text cast không cần thiết (PostgreSQL LOWER() chấp nhận varchar trực tiếp)
-     * - Dùng CAST(:categoryId AS uuid) và CAST(:brandId AS uuid) đúng cách
-     * - Thêm parentheses để AND/OR ưu tiên đúng trong điều kiện keyword
+     * FIX: Dùng CAST(:keyword AS text) thay vì :keyword IS NULL trực tiếp.
+     * Hibernate 6 + PostgreSQL bind null dưới dạng bytea khi không có CAST tường minh,
+     * dẫn đến LOWER(bytea) không tồn tại → lỗi 42883.
      */
     @Query(value = """
         SELECT * FROM products p
         WHERE p.deleted_at IS NULL
-          AND (
-               :keyword IS NULL
-               OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-               OR LOWER(p.sku)  LIKE LOWER(CONCAT('%', :keyword, '%'))
-              )
+          AND (CAST(:keyword AS text) IS NULL
+               OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+               OR LOWER(p.sku)  LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%')))
           AND (CAST(:categoryId AS uuid) IS NULL OR p.category_id = CAST(:categoryId AS uuid))
           AND (CAST(:brandId    AS uuid) IS NULL OR p.brand_id    = CAST(:brandId    AS uuid))
           AND (:isActive IS NULL OR p.is_active = CAST(:isActive AS boolean))
@@ -62,11 +63,9 @@ public interface ProductRepository extends JpaRepository<Product, UUID>,
             countQuery = """
         SELECT COUNT(*) FROM products p
         WHERE p.deleted_at IS NULL
-          AND (
-               :keyword IS NULL
-               OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-               OR LOWER(p.sku)  LIKE LOWER(CONCAT('%', :keyword, '%'))
-              )
+          AND (CAST(:keyword AS text) IS NULL
+               OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+               OR LOWER(p.sku)  LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%')))
           AND (CAST(:categoryId AS uuid) IS NULL OR p.category_id = CAST(:categoryId AS uuid))
           AND (CAST(:brandId    AS uuid) IS NULL OR p.brand_id    = CAST(:brandId    AS uuid))
           AND (:isActive IS NULL OR p.is_active = CAST(:isActive AS boolean))
@@ -78,8 +77,4 @@ public interface ProductRepository extends JpaRepository<Product, UUID>,
             @Param("brandId")    String brandId,
             @Param("isActive")   Boolean isActive,
             Pageable pageable);
-
-    @Modifying
-    @Query("UPDATE Product p SET p.stock = p.stock + :qty WHERE p.id = :id")
-    void incrementStock(@Param("id") UUID id, @Param("qty") int qty);
 }

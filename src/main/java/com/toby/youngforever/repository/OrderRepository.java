@@ -24,7 +24,6 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     @Query("SELECT COUNT(o) FROM Order o WHERE o.status = :status AND o.createdAt >= :since")
     long countByStatusSince(@Param("status") OrderStatus status, @Param("since") LocalDateTime since);
 
-    // FIX BUG 1: Thay chuỗi 'DELIVERED' bằng :status enum param
     @Query("""
         SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o
         WHERE o.status = :status
@@ -38,18 +37,39 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     @Query("SELECT o FROM Order o WHERE o.user.id = :userId AND o.id = :orderId")
     Optional<Order> findByIdAndUserId(@Param("orderId") UUID orderId, @Param("userId") UUID userId);
 
-    // Admin search – hỗ trợ kết hợp keyword + status cùng lúc
-    @Query("""
-        SELECT o FROM Order o
-        WHERE (:status IS NULL OR o.status = :status)
-          AND (:keyword IS NULL
-               OR LOWER(o.orderNumber) LIKE LOWER(CONCAT('%', :keyword, '%'))
-               OR LOWER(o.shipFullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
-               OR LOWER(o.shipPhone) LIKE LOWER(CONCAT('%', :keyword, '%')))
-        ORDER BY o.createdAt DESC
-        """)
+    /**
+     * FIX: Lỗi "lower(bytea) does not exist" trên PostgreSQL xảy ra do Hibernate 6
+     * bind tham số null dưới dạng bytea thay vì varchar khi dùng JPQL.
+     *
+     * Giải pháp: chuyển sang native SQL với CAST(:keyword AS text) tường minh.
+     * PostgreSQL sẽ biết đúng kiểu dữ liệu và không bị nhầm sang bytea.
+     *
+     * Cũng thêm CAST(:status AS varchar) để tránh lỗi tương tự cho enum param.
+     */
+    @Query(value = """
+        SELECT * FROM orders o
+        WHERE (CAST(:status AS varchar) IS NULL OR o.status = CAST(:status AS varchar))
+          AND (
+               CAST(:keyword AS text) IS NULL
+               OR LOWER(o.order_number)   LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+               OR LOWER(o.ship_full_name) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+               OR LOWER(o.ship_phone)     LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+              )
+        ORDER BY o.created_at DESC
+        """,
+            countQuery = """
+        SELECT COUNT(*) FROM orders o
+        WHERE (CAST(:status AS varchar) IS NULL OR o.status = CAST(:status AS varchar))
+          AND (
+               CAST(:keyword AS text) IS NULL
+               OR LOWER(o.order_number)   LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+               OR LOWER(o.ship_full_name) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+               OR LOWER(o.ship_phone)     LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+              )
+        """,
+            nativeQuery = true)
     Page<Order> searchOrders(
             @Param("keyword") String keyword,
-            @Param("status") OrderStatus status,
+            @Param("status") String status,   // FIX: đổi từ OrderStatus → String vì native query
             Pageable pageable);
 }

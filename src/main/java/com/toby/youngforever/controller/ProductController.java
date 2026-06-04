@@ -23,7 +23,7 @@ import java.util.UUID;
 @Tag(name = "Products", description = "Quản lý sản phẩm")
 public class ProductController {
 
-    private final ProductService productService;   // ← was missing in original upload
+    private final ProductService productService;
 
     @GetMapping
     @Operation(summary = "Danh sách sản phẩm – lọc, tìm kiếm, phân trang")
@@ -34,14 +34,15 @@ public class ProductController {
 
     @GetMapping("/{slug}")
     @Operation(summary = "Chi tiết sản phẩm theo slug")
-   public ResponseEntity<ApiResponse<ProductResponse>> getProduct(@PathVariable String slug) {
-       ProductResponse resp = productService.getBySlug(slug);
-       productService.recordView(resp.getId());
-       return ResponseEntity.ok(ApiResponse.success(resp));
-   }
+    public ResponseEntity<ApiResponse<ProductResponse>> getProduct(@PathVariable String slug) {
+        ProductResponse resp = productService.getBySlug(slug);
+        productService.recordView(resp.getId());
+        return ResponseEntity.ok(ApiResponse.success(resp));
+    }
 
     @PostMapping
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    // FIX: 'ROLE_ADMIN' → 'ADMIN' (hasRole tự thêm prefix ROLE_)
+    @PreAuthorize("hasRole('ADMIN')")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Tạo sản phẩm mới (ADMIN)")
     public ResponseEntity<ApiResponse<ProductResponse>> createProduct(
@@ -51,7 +52,8 @@ public class ProductController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_STAFF')")
+    // FIX: 'ROLE_ADMIN', 'ROLE_STAFF' → 'ADMIN', 'STAFF'
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Cập nhật sản phẩm (ADMIN / STAFF)")
     public ResponseEntity<ApiResponse<ProductResponse>> updateProduct(
@@ -61,7 +63,8 @@ public class ProductController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    // FIX: 'ROLE_ADMIN' → 'ADMIN'
+    @PreAuthorize("hasRole('ADMIN')")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Xóa sản phẩm (ADMIN – soft delete)")
     public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable UUID id) {

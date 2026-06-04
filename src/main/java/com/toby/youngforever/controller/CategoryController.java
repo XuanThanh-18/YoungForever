@@ -34,7 +34,8 @@ public class CategoryController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    // FIX: 'ROLE_ADMIN' → 'ADMIN' (hasRole tự thêm prefix ROLE_)
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<CategoryResponse>> createCategory(
             @Valid @RequestBody CreateCategoryRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -42,7 +43,8 @@ public class CategoryController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    // FIX: 'ROLE_ADMIN' → 'ADMIN'
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<CategoryResponse>> updateCategory(
             @PathVariable UUID id,
             @Valid @RequestBody CreateCategoryRequest request) {
@@ -50,7 +52,8 @@ public class CategoryController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    // FIX: 'ROLE_ADMIN' → 'ADMIN'
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteCategory(@PathVariable UUID id) {
         categoryService.softDelete(id);
         return ResponseEntity.ok(ApiResponse.success(null));
